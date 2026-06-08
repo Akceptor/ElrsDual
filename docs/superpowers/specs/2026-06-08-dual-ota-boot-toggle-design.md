@@ -39,8 +39,9 @@ running firmware rewrites `otadata` at startup to point at the *other* slot.
 ## Component 1 — The toggle snippet (added to BOTH source trees)
 
 The same snippet is added to both the v3.6.3 and v4.0.1 source trees, at the very
-top of `setup()` in `src/rx_main.cpp` (currently line 1958 on master; locate the
-equivalent `void setup()` in each tag).
+top of `setup()` in `src/src/rx_main.cpp` (the PlatformIO project root is `src/`;
+C++ sources live in `src/src/`). On master `void setup()` is at line 1958; locate
+the equivalent `void setup()` in each tag.
 
 ```c
 #include "esp_ota_ops.h"
@@ -134,11 +135,17 @@ esptool.py --chip esp32 write_flash \
 1. Both builds compile cleanly for `Unified_ESP32_900_RX_via_UART`.
 2. Confirm `partitions.bin` is byte-identical between the v3.6.3 and v4.0.1 builds
    (both use `min_spiffs.csv`); if they differ, reconcile before flashing.
-3. Flash the layout above; open the serial monitor.
-4. Observe the optional toggle log line ("running app0 → armed app1") plus ELRS's
-   own version banner at boot.
-5. Power-cycle several times and confirm the version banner alternates
+3. Flash the layout above and power on.
+4. **Primary signal — WiFi web UI:** the running ELRS firmware exposes a WiFi
+   access point; its web UI displays the firmware version. `DBGLN`/serial logging
+   is compiled out by default in RX builds, and on a `_via_UART` RX the main
+   `Serial` is the CRSF link to the flight controller, so the web UI is the
+   build-flag-free way to read the running version.
+5. Power-cycle several times and confirm the displayed version alternates
    3.6.3 ↔ 4.0.1 on each reboot.
+6. **Optional serial signal:** build each image with `-DDEBUG_LOG` so the
+   one-shot `DBGLN("[OTA-TOGGLE] running slot=...")` in `loop()` prints the running
+   OTA slot label (`app0` = v3, `app1` = v4) to the logging UART at 420000 baud.
 
 ## Out of scope
 
