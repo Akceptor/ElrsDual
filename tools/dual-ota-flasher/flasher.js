@@ -1,4 +1,4 @@
-import { ESPLoader, Transport } from "https://esm.sh/esptool-js@0.6.0";
+import { ESPLoader, Transport } from "./esptool-bundle.js";
 
 const APP0_ADDR = 0x10000;
 const APP1_ADDR = 0x1F0000;
