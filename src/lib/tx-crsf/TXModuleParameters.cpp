@@ -98,6 +98,14 @@ static selectionParameter luaTlmRate = {
     tlmBandwidth
 };
 
+#if defined(PLATFORM_ESP32)
+static commandParameter luaFirmwareSlot = {
+    {"Switch FW Slot", CRSF_COMMAND},
+    lcsIdle, // step
+    STR_EMPTYSPACE
+};
+#endif
+
 //----------------------------POWER------------------
 static folderParameter luaPowerFolder = {
     {"TX Power", CRSF_FOLDER},pwrFolderDynamicName
@@ -323,6 +331,9 @@ extern bool BackpackTelemReadyToSend;
 extern bool TxBackpackWiFiReadyToSend;
 extern bool VRxBackpackWiFiReadyToSend;
 extern void setWifiUpdateMode();
+#if defined(PLATFORM_ESP32)
+extern void setSwitchFirmwareSlot();
+#endif
 
 void TXModuleEndpoint::supressCriticalErrors()
 {
