@@ -1235,7 +1235,7 @@ static void WebSetSlot(AsyncWebServerRequest *request, JsonVariant &json)
         return;
     }
     request->send(200, "application/json", "{\"status\":\"rebooting\"}");
-    rebootTime = millis() + 200;
+    scheduleRebootTime(200);
 }
 #endif
 
