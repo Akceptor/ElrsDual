@@ -147,6 +147,27 @@ esptool.py --chip esp32 write_flash \
    one-shot `DBGLN("[OTA-TOGGLE] running slot=...")` in `loop()` prints the running
    OTA slot label (`app0` = v3, `app1` = v4) to the logging UART at 420000 baud.
 
+## Implementation outcome (2026-06-09)
+
+Implemented and verified on hardware (LiLiGo/TTGO V2 LoRa32, 433 MHz).
+
+- **Regulatory domain (spec gap):** 900 MHz builds require a `Regulatory_Domain`
+  define that the original spec did not capture. Resolved by enabling
+  `-DRegulatory_Domain_EU_433` in `user_defines.txt` in both worktrees (the board
+  is a 433 MHz LoRa board).
+- **Configuration:** both unified images configured with
+  `binary_configurator.py --target diy.rx_900.ttgov2 --domain eu_433 --phrase ...`
+  (the `--out` flag expects a directory; the tool configures the file in place).
+- **Flash:** `esptool write_flash` of `bootloader.bin` @0x1000, `partitions.bin`
+  @0x8000, `boot_app0.bin` @0xe000, v3.6.3 @0x10000 (app0), v4.0.1 @0x1F0000 (app1).
+- **Verification (stronger than the WiFi-UI plan):** read the `otadata` partition
+  (`0xe000`, 0x2000) and decoded the `ota_seq` of both select entries across
+  reboots. Observed `seq` advance `1 → 2 → 3` with the active slot flipping
+  `app0 → app1 → app0`, proving the per-reboot alternation directly. The WiFi-UI
+  version check (below) remains valid as a human-readable confirmation.
+- **Published:** branches `dual-ota/v3.6.3` and `dual-ota/v4.0.1` pushed to
+  `Akceptor/ElrsDual`.
+
 ## Out of scope
 
 - Modifying the second-stage bootloader (explicitly rejected in favor of the
