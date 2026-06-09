@@ -8,8 +8,10 @@
 #include <ArduinoJson.h>
 #if defined(PLATFORM_ESP8266)
 #include <FS.h>
+#define ELRS_FS SPIFFS
 #else
-#include <SPIFFS.h>
+#include <LittleFS.h>
+#define ELRS_FS LittleFS
 #endif
 
 #if defined(PLATFORM_ESP32)
@@ -208,7 +210,7 @@ static void putFile(AsyncWebServerRequest *request, uint8_t *data, size_t len, s
   static File file;
   static size_t bytes;
   if (!file || request->url() != file.name()) {
-    file = SPIFFS.open(request->url(), "w");
+    file = ELRS_FS.open(request->url(), "w");
     bytes = 0;
   }
   file.write(data, len);
@@ -225,7 +227,7 @@ static void getFile(AsyncWebServerRequest *request)
   } else if (request->url() == "/hardware.json") {
     request->send(200, "application/json", getHardware());
   } else {
-    request->send(SPIFFS, request->url().c_str(), "text/plain", true);
+    request->send(ELRS_FS, request->url().c_str(), "text/plain", true);
   }
 }
 
@@ -241,13 +243,13 @@ static void HandleReboot(AsyncWebServerRequest *request)
 static void HandleReset(AsyncWebServerRequest *request)
 {
   if (request->hasArg("hardware")) {
-    SPIFFS.remove("/hardware.json");
+    ELRS_FS.remove("/hardware.json");
   }
   if (request->hasArg("options")) {
-    SPIFFS.remove("/options.json");
+    ELRS_FS.remove("/options.json");
   }
   if (request->hasArg("lr1121")) {
-    SPIFFS.remove("/lr1121.txt");
+    ELRS_FS.remove("/lr1121.txt");
   }
   if (request->hasArg("model") || request->hasArg("config")) {
     config.SetDefaults(true);
@@ -266,7 +268,7 @@ static void UpdateSettings(AsyncWebServerRequest *request, JsonVariant &json)
     return;
   }
 
-  File file = SPIFFS.open("/options.json", "w");
+  File file = ELRS_FS.open("/options.json", "w");
   serializeJson(json, file);
   request->send(200);
 }
