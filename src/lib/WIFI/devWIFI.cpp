@@ -1056,6 +1056,46 @@ static void addCaptivePortalHandlers()
     server.on("/success.txt", [](AsyncWebServerRequest *request) { request->send(200); }); // firefox captive portal call home
 }
 
+#if defined(PLATFORM_ESP32)
+static int getRunningSlot()
+{
+    const esp_partition_t *r = esp_ota_get_running_partition();
+    return (r != nullptr && r->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) ? 1 : 0;
+}
+
+static void WebGetSlot(AsyncWebServerRequest *request)
+{
+    char buf[24];
+    snprintf(buf, sizeof(buf), "{\"running\":%d}", getRunningSlot());
+    request->send(200, "application/json", buf);
+}
+
+static void WebSetSlot(AsyncWebServerRequest *request, JsonVariant &json)
+{
+    int slot = json["slot"] | -1;
+    if (slot != 0 && slot != 1)
+    {
+        request->send(400, "application/json", "{\"status\":\"bad-slot\"}");
+        return;
+    }
+    if (slot == getRunningSlot())
+    {
+        request->send(200, "application/json", "{\"status\":\"current\"}");
+        return;
+    }
+    esp_partition_subtype_t sub = (slot == 1) ? ESP_PARTITION_SUBTYPE_APP_OTA_1
+                                              : ESP_PARTITION_SUBTYPE_APP_OTA_0;
+    const esp_partition_t *target = esp_partition_find_first(ESP_PARTITION_TYPE_APP, sub, NULL);
+    if (target == nullptr || esp_ota_set_boot_partition(target) != ESP_OK)
+    {
+        request->send(500, "application/json", "{\"status\":\"error\"}");
+        return;
+    }
+    request->send(200, "application/json", "{\"status\":\"rebooting\"}");
+    rebootTime = millis() + 200;
+}
+#endif
+
 static void startServices()
 {
   if (servicesStarted) {
@@ -1075,6 +1115,10 @@ static void startServices()
   server.on("/forget", WebUpdateForget);
   server.on("/connect", WebUpdateConnect);
   server.on("/config", HTTP_GET, GetConfiguration);
+#if defined(PLATFORM_ESP32)
+  server.on("/slot", HTTP_GET, WebGetSlot);
+  server.addHandler(new AsyncCallbackJsonWebHandler("/slot", WebSetSlot));
+#endif
   server.on("/access", WebUpdateAccessPoint);
   server.on("/target", WebUpdateGetTarget);
   server.on("/firmware.bin", WebUpdateGetFirmware);
