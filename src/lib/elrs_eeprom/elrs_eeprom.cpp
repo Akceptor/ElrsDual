@@ -17,6 +17,20 @@
         #define STM32_USE_FLASH
         #include <utility/stm32_eeprom.h>
     #endif
+#elif defined(PLATFORM_ESP32)
+    #include <nvs_flash.h>
+    #include <nvs.h>
+    #include <esp_ota_ops.h>
+    #include <string.h>
+
+    static uint8_t eeprom_buf[RESERVED_EEPROM_SIZE];
+    static nvs_handle_t eeprom_nvs_handle;
+
+    static const char* nvsEepromNamespace()
+    {
+        const esp_partition_t *p = esp_ota_get_running_partition();
+        return (p && p->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) ? "eeprom_1" : "eeprom_0";
+    }
 #else
     #include <EEPROM.h>
 #endif
@@ -38,9 +52,20 @@ ELRS_EEPROM::Begin()
             EEPROM.begin(extEEPROM::twiClock100kHz, &Wire);
         #endif
     #endif // STM32_USE_FLASH
-#else /* !PLATFORM_STM32 */
+#elif defined(PLATFORM_ESP32)
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        nvs_flash_erase();
+        nvs_flash_init();
+    }
+    nvs_open(nvsEepromNamespace(), NVS_READWRITE, &eeprom_nvs_handle);
+    memset(eeprom_buf, 0xFF, sizeof(eeprom_buf));
+    size_t len = sizeof(eeprom_buf);
+    nvs_get_blob(eeprom_nvs_handle, "data", eeprom_buf, &len);
+#else /* ESP8266 and others */
     EEPROM.begin(RESERVED_EEPROM_SIZE);
-#endif /* PLATFORM_STM32 */
+#endif
 }
 
 uint8_t
@@ -54,6 +79,8 @@ ELRS_EEPROM::ReadByte(const uint32_t address)
     }
 #if defined(STM32_USE_FLASH)
     return eeprom_buffered_read_byte(address);
+#elif defined(PLATFORM_ESP32)
+    return eeprom_buf[address];
 #else
     return EEPROM.read(address);
 #endif
@@ -72,6 +99,8 @@ ELRS_EEPROM::WriteByte(const uint32_t address, const uint8_t value)
     eeprom_buffered_write_byte(address, value);
 #elif defined(PLATFORM_STM32)
     EEPROM.update(address, value);
+#elif defined(PLATFORM_ESP32)
+    eeprom_buf[address] = value;
 #else
     EEPROM.write(address, value);
 #endif
@@ -80,10 +109,16 @@ ELRS_EEPROM::WriteByte(const uint32_t address, const uint8_t value)
 void
 ELRS_EEPROM::Commit()
 {
-#if defined(PLATFORM_ESP32) || defined(PLATFORM_ESP8266)
+#if defined(PLATFORM_ESP32)
+    if (nvs_set_blob(eeprom_nvs_handle, "data", eeprom_buf, sizeof(eeprom_buf)) != ESP_OK ||
+        nvs_commit(eeprom_nvs_handle) != ESP_OK)
+    {
+        ERRLN("EEPROM commit failed");
+    }
+#elif defined(PLATFORM_ESP8266)
     if (!EEPROM.commit())
     {
-      ERRLN("EEPROM commit failed");
+        ERRLN("EEPROM commit failed");
     }
 #elif defined(STM32_USE_FLASH)
     eeprom_buffer_flush();
