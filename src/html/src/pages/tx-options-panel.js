@@ -11,6 +11,10 @@ class TxOptionsPanel extends LitElement {
     @state() accessor baudRate
     @state() accessor tlmInterval
     @state() accessor fanRuntime
+    @state() accessor runningSlot = -1
+    @state() accessor slot0Label = 'slot 0'
+    @state() accessor slot1Label = 'slot 1'
+    @state() accessor slotMsg = ''
 
     createRenderRoot() {
         this.domain = elrsState.options.domain
@@ -18,6 +22,7 @@ class TxOptionsPanel extends LitElement {
         this.baudRate = elrsState.options['airport-uart-baud']
         this.tlmInterval = elrsState.options['tlm-interval']
         this.fanRuntime = elrsState.options['fan-runtime']
+        this._saveSlot = this._saveSlot.bind(this)
         return this
     }
 
@@ -78,7 +83,44 @@ class TxOptionsPanel extends LitElement {
                     ` : ''}
                 </form>
             </div>
+            <div class="mui-panel mui--text-title">Firmware Version</div>
+            <div class="mui-panel">
+                <div class="mui-radio">
+                    <label><input type="radio" name="bootslot" value="0"/> ${this.slot0Label}${this.runningSlot === 0 ? ' (this)' : ''}</label>
+                </div>
+                <div class="mui-radio">
+                    <label><input type="radio" name="bootslot" value="1"/> ${this.slot1Label}${this.runningSlot === 1 ? ' (this)' : ''}</label>
+                </div>
+                <button class="mui-btn mui-btn--primary" @click=${this._saveSlot}>Select and reboot</button>
+                <span style="margin-left:1em">${this.slotMsg}</span>
+            </div>
         `
+    }
+
+    firstUpdated() {
+        fetch('/slot').then(r => r.json()).then(async d => {
+            this.runningSlot = d.running
+            if (d.slot0) this.slot0Label = d.slot0
+            if (d.slot1) this.slot1Label = d.slot1
+            await this.updateComplete
+            const radio = this.querySelector(`input[name=bootslot][value="${d.running}"]`)
+            if (radio) radio.checked = true
+        })
+    }
+
+    async _saveSlot(e) {
+        e.preventDefault()
+        const sel = this.querySelector('input[name=bootslot]:checked')
+        const slot = sel ? parseInt(sel.value, 10) : this.runningSlot
+        const resp = await fetch('/slot', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({slot})
+        })
+        const data = await resp.json().catch(() => ({}))
+        this.slotMsg = data.status === 'current' ? 'Already running this version'
+                     : data.status === 'rebooting' ? 'Rebooting…'
+                     : 'Error switching version'
     }
 
     save(e) {

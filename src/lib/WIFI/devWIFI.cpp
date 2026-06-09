@@ -12,6 +12,7 @@
 #include <Update.h>
 #include <esp_partition.h>
 #include <esp_ota_ops.h>
+#include <nvs.h>
 #include <soc/uart_pins.h>
 #else
 #include <ESP8266WiFi.h>
@@ -40,6 +41,11 @@
 #include "WebContent.h"
 
 #include "config.h"
+
+#if defined(PLATFORM_ESP32)
+#include "esp_ota_ops.h"
+#include "esp_partition.h"
+#endif
 
 #if defined(RADIO_LR1121)
 #include "lr1121.h"
@@ -1064,6 +1070,65 @@ static void addCaptivePortalHandlers()
         server.on(uri, WebUpdateHandleRoot);
 }
 
+#if defined(PLATFORM_ESP32)
+static int getRunningSlot()
+{
+    const esp_partition_t *r = esp_ota_get_running_partition();
+    return (r != nullptr && r->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) ? 1 : 0;
+}
+
+static void writeSlotVersion()
+{
+    nvs_handle_t h;
+    if (nvs_open("elrs_ota", NVS_READWRITE, &h) != ESP_OK) return;
+    nvs_set_str(h, (getRunningSlot() == 0) ? "s0ver" : "s1ver", VERSION);
+    nvs_commit(h);
+    nvs_close(h);
+}
+
+static void WebGetSlot(AsyncWebServerRequest *request)
+{
+    char s0[32] = {0}, s1[32] = {0};
+    nvs_handle_t h;
+    if (nvs_open("elrs_ota", NVS_READONLY, &h) == ESP_OK) {
+        size_t len = sizeof(s0);
+        nvs_get_str(h, "s0ver", s0, &len);
+        len = sizeof(s1);
+        nvs_get_str(h, "s1ver", s1, &len);
+        nvs_close(h);
+    }
+    char buf[128];
+    snprintf(buf, sizeof(buf), "{\"running\":%d,\"slot0\":\"%s\",\"slot1\":\"%s\"}",
+             getRunningSlot(), s0, s1);
+    request->send(200, "application/json", buf);
+}
+
+static void WebSetSlot(AsyncWebServerRequest *request, JsonVariant &json)
+{
+    int slot = json["slot"] | -1;
+    if (slot != 0 && slot != 1)
+    {
+        request->send(400, "application/json", "{\"status\":\"bad-slot\"}");
+        return;
+    }
+    if (slot == getRunningSlot())
+    {
+        request->send(200, "application/json", "{\"status\":\"current\"}");
+        return;
+    }
+    esp_partition_subtype_t sub = (slot == 1) ? ESP_PARTITION_SUBTYPE_APP_OTA_1
+                                              : ESP_PARTITION_SUBTYPE_APP_OTA_0;
+    const esp_partition_t *target = esp_partition_find_first(ESP_PARTITION_TYPE_APP, sub, NULL);
+    if (target == nullptr || esp_ota_set_boot_partition(target) != ESP_OK)
+    {
+        request->send(500, "application/json", "{\"status\":\"error\"}");
+        return;
+    }
+    request->send(200, "application/json", "{\"status\":\"rebooting\"}");
+    rebootTime = millis() + 200;
+}
+#endif
+
 static void startServices()
 {
   if (servicesStarted) {
@@ -1083,6 +1148,11 @@ static void startServices()
   server.on("/forget", WebUpdateForget);
   server.on("/connect", WebUpdateConnect);
   server.on("/config", HTTP_GET, GetConfiguration);
+#if defined(PLATFORM_ESP32)
+  writeSlotVersion();
+  server.on("/slot", HTTP_GET, WebGetSlot);
+  server.addHandler(new AsyncCallbackJsonWebHandler("/slot", WebSetSlot));
+#endif
   server.on("/access", WebUpdateAccessPoint);
   server.on("/firmware.bin", WebUpdateGetFirmware);
 
