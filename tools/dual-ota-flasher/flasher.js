@@ -18,7 +18,7 @@ const terminal = {
   write(data) { logEl.textContent += data; logEl.scrollTop = logEl.scrollHeight; },
 };
 
-const ACTION_IDS = ["connect", "flash", "read0", "read1", "active"];
+const ACTION_IDS = ["connect", "flash", "read0", "read1", "active", "setslot"];
 function setBusy(busy) {
   for (const id of ACTION_IDS) {
     const el = document.getElementById(id);
@@ -158,16 +158,65 @@ document.getElementById("active").addEventListener("click", async () => {
     const s1 = dv.getUint32(0x1000, true);
     const valid = (x) => x !== 0 && x !== 0xffffffff;
     const cand = [s0, s1].filter(valid);
-    let msg;
+    let msg, slot;
     if (cand.length === 0) {
       msg = "indeterminate (otadata blank) — boots app0 (ELRS v3.x)";
+      slot = 0;
     } else {
-      const slot = (Math.max(...cand) - 1) % 2;
+      slot = (Math.max(...cand) - 1) % 2;
       msg = slot === 0 ? "app0 (ELRS v3.x)" : "app1 (ELRS v4.x)";
     }
     log("Currently boots: " + msg + "   [seq app0=" + s0 + " app1=" + s1 + "]");
+    const radio = document.querySelector(`input[name="slotsel"][value="${slot}"]`);
+    if (radio) radio.checked = true;
   } catch (e) {
     log("otadata read error: " + e.message);
+  } finally {
+    setBusy(false);
+  }
+});
+
+// Standard reflected CRC32, matching ESP-IDF's bootloader_common_crc32
+function crc32(data) {
+  let crc = 0xFFFFFFFF;
+  for (const b of data) {
+    crc ^= b;
+    for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+// Build a fresh 8192-byte otadata that selects the given slot.
+// esp_ota_select_entry_t layout: ota_seq (4B) | seq_label (20B, 0xFF) | crc32 (4B)
+// Active slot = (max_valid_seq - 1) % 2, so seq=1 → slot 0, seq=2 → slot 1.
+function buildOtadata(slot) {
+  const buf = new Uint8Array(OTADATA_SIZE).fill(0xFF);
+  const seq = slot === 0 ? 1 : 2;
+  const dv = new DataView(buf.buffer);
+  dv.setUint32(0x0000, seq, true);                          // ota_seq (record 0)
+  const seqBytes = new Uint8Array(4);
+  new DataView(seqBytes.buffer).setUint32(0, seq, true);
+  dv.setUint32(0x0018, crc32(seqBytes), true);              // CRC at offset 24
+  // record 1 at 0x1000 stays all 0xFF → invalid
+  return buf;
+}
+
+document.getElementById("setslot").addEventListener("click", async () => {
+  if (!esploader) { log("Connect first."); return; }
+  const sel = document.querySelector('input[name="slotsel"]:checked');
+  if (!sel) { log("Select a slot first."); return; }
+  const slot = parseInt(sel.value, 10);
+  setBusy(true);
+  try {
+    await esploader.writeFlash({
+      fileArray: [{ data: buildOtadata(slot), address: OTADATA_ADDR }],
+      flashMode: "keep", flashFreq: "keep", flashSize: "keep",
+      eraseAll: false, compress: true, reportProgress: () => {},
+    });
+    await esploader.after("hard_reset");
+    log("Active slot → " + (slot === 0 ? "app0 (ELRS v3.x)" : "app1 (ELRS v4.x)") + ". Rebooting…");
+  } catch (e) {
+    log("Set slot error: " + e.message);
   } finally {
     setBusy(false);
   }
