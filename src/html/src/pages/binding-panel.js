@@ -12,16 +12,11 @@ class BindingPanel extends LitElement {
     @state() accessor bindType = 0
     @state() accessor uidData = {}
 
-    @state() accessor bootSlot = 0
-    @state() accessor runningSlot = 0
-    @state() accessor slotMsg = ''
-
     originalUIDType = ''
     originalUID = []
 
     createRenderRoot() {
         this._submitOptions = this._submitOptions.bind(this)
-        this._saveSlot = this._saveSlot.bind(this)
         return this
     }
 
@@ -31,10 +26,6 @@ class BindingPanel extends LitElement {
         this.originalUID = elrsState.config.uid
         this.originalUIDType = (elrsState.settings && elrsState.settings.uidtype) ? elrsState.settings.uidtype : ''
         this._updateUIDType(this.originalUIDType)
-        fetch('/slot').then(r => r.json()).then(d => {
-            this.runningSlot = d.running
-            this.bootSlot = d.running
-        })
     }
 
     render() {
@@ -88,41 +79,7 @@ class BindingPanel extends LitElement {
                     </button>
                 </form>
             </div>
-            <div class="mui-panel mui--text-title">Firmware Version</div>
-            <div class="mui-panel">
-                <form class="mui-form">
-                    <div class="mui-radio">
-                        <label>
-                            <input type="radio" name="bootslot" .checked=${this.bootSlot === 0}
-                                   @change=${() => { this.bootSlot = 0 }}/>
-                            ELRS v3.x${this.runningSlot === 0 ? ' (this)' : ''}
-                        </label>
-                    </div>
-                    <div class="mui-radio">
-                        <label>
-                            <input type="radio" name="bootslot" .checked=${this.bootSlot === 1}
-                                   @change=${() => { this.bootSlot = 1 }}/>
-                            ELRS v4.x${this.runningSlot === 1 ? ' (this)' : ''}
-                        </label>
-                    </div>
-                    <button class="mui-btn mui-btn--primary" @click=${this._saveSlot}>Save</button>
-                    <span style="margin-left:1em">${this.slotMsg}</span>
-                </form>
-            </div>
         `
-    }
-
-    async _saveSlot(e) {
-        e.preventDefault()
-        const resp = await fetch('/slot', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({slot: this.bootSlot})
-        })
-        const data = await resp.json().catch(() => ({}))
-        this.slotMsg = data.status === 'current' ? 'Already running this version'
-                     : data.status === 'rebooting' ? 'Rebooting…'
-                     : 'Error switching version'
     }
 
     _isValidUidByte(s) {
