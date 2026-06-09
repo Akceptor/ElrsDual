@@ -104,6 +104,13 @@ TxConfig::TxConfig() :
 }
 
 #if defined(PLATFORM_ESP32)
+#include <esp_ota_ops.h>
+static const char* nvsELRSNamespace()
+{
+    const esp_partition_t *p = esp_ota_get_running_partition();
+    return (p && p->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) ? "ELRS_1" : "ELRS_0";
+}
+
 void TxConfig::Load()
 {
     m_modified = 0;
@@ -116,7 +123,7 @@ void TxConfig::Load()
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK( err );
-    ESP_ERROR_CHECK(nvs_open("ELRS", NVS_READWRITE, &handle));
+    ESP_ERROR_CHECK(nvs_open(nvsELRSNamespace(), NVS_READWRITE, &handle));
 
     // Try to load the version and make sure it is a TX config
     uint32_t version = 0;

@@ -5,8 +5,10 @@
 #include "logging.h"
 #if defined(PLATFORM_ESP8266)
 #include <FS.h>
+#define ELRS_FS SPIFFS
 #else
-#include <SPIFFS.h>
+#include <LittleFS.h>
+#define ELRS_FS LittleFS
 #endif
 #include <ArduinoJson.h>
 
@@ -152,7 +154,7 @@ static String builtinHardwareConfig;
 
 String& getHardware()
 {
-    File file = SPIFFS.open("/hardware.json", "r");
+    File file = ELRS_FS.open("/hardware.json", "r");
     if (!file || file.isDirectory())
     {
         if (file)
@@ -228,7 +230,7 @@ bool hardware_init(EspFlashStream &strmFlash)
 
     Stream *strmSrc;
     JsonDocument doc;
-    File file = SPIFFS.open("/hardware.json", "r");
+    File file = ELRS_FS.open("/hardware.json", "r");
     if (!file || file.isDirectory()) {
         constexpr size_t hardwareConfigOffset = ELRSOPTS_PRODUCTNAME_SIZE + ELRSOPTS_DEVICENAME_SIZE + ELRSOPTS_OPTIONS_SIZE;
         strmFlash.setPosition(hardwareConfigOffset);

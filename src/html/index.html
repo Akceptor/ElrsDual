@@ -116,6 +116,19 @@
 						<input type="hidden" id='wifi-password' name='wifi-password'/>
 					</form>
 				</div>
+				<div class="mui-panel">
+					<div id="fwversion">
+						<h2>Firmware Version</h2>
+						<div class="mui-radio">
+							<label><input type="radio" name="bootslot" value="0"/> <span id="slot0ver">slot 0</span> <span id="slot0this"></span></label>
+						</div>
+						<div class="mui-radio">
+							<label><input type="radio" name="bootslot" value="1"/> <span id="slot1ver">slot 1</span> <span id="slot1this"></span></label>
+						</div>
+						<button type="button" class="mui-btn mui-btn--primary" id="saveslot">Select and reboot</button>
+						<span id="slotmsg"></span>
+					</div>
+				</div>
 @@if isTX:
 				<div class="mui-panel">
 					<h2>Import/Export</h2>
@@ -376,4 +389,28 @@
 </body>
 <script src="mui.js"></script>
 <script src="scan.js"></script>
+<script>
+(function () {
+    fetch('/slot').then(r => r.json()).then(d => {
+        document.getElementById('slot' + d.running + 'this').textContent = '(this)';
+        if (d.slot0) document.getElementById('slot0ver').textContent = d.slot0;
+        if (d.slot1) document.getElementById('slot1ver').textContent = d.slot1;
+        var el = document.querySelector('input[name=bootslot][value="' + d.running + '"]');
+        if (el) el.checked = true;
+    });
+    document.getElementById('saveslot').addEventListener('click', function () {
+        var sel = document.querySelector('input[name=bootslot]:checked');
+        if (!sel) return;
+        fetch('/slot', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({slot: parseInt(sel.value, 10)})
+        }).then(r => r.json()).then(function (d) {
+            document.getElementById('slotmsg').textContent =
+                d.status === 'current' ? 'Already running this version' :
+                d.status === 'rebooting' ? 'Rebooting…' : 'Error switching version';
+        });
+    });
+})();
+</script>
 </html>
