@@ -71,6 +71,14 @@ static struct luaItem_selection luaTlmRate = {
     tlmBandwidth
 };
 
+#if defined(PLATFORM_ESP32)
+static struct luaItem_command luaFirmwareSlot = {
+    {"Switch FW Slot", CRSF_COMMAND},
+    lcsIdle, // step
+    STR_EMPTYSPACE
+};
+#endif
+
 //----------------------------POWER------------------
 static struct luaItem_folder luaPowerFolder = {
     {"TX Power", CRSF_FOLDER},pwrFolderDynamicName
@@ -320,6 +328,9 @@ extern bool VRxBackpackWiFiReadyToSend;
 #if defined(PLATFORM_ESP32) || defined(PLATFORM_ESP8266)
 extern unsigned long rebootTime;
 extern void setWifiUpdateMode();
+#if defined(PLATFORM_ESP32)
+extern void setSwitchFirmwareSlot();
+#endif
 #endif
 
 static void luadevUpdateModelID() {
@@ -447,6 +458,26 @@ static void luahandWifiBle(struct luaPropertiesCommon *item, uint8_t arg)
       break;
 
     default: // LUACMDSTEP_NONE on load, LUACMDSTEP_EXECUTING (our lua) or LUACMDSTEP_QUERY (Crossfire Config)
+      sendLuaCommandResponse(cmd, cmd->step, cmd->info);
+      break;
+  }
+}
+
+static void luahandFirmwareSlot(struct luaPropertiesCommon *item, uint8_t arg)
+{
+  struct luaItem_command *cmd = (struct luaItem_command *)item;
+  switch ((luaCmdStep_e)arg)
+  {
+    case lcsClick:
+      sendLuaCommandResponse(cmd, lcsExecuting, "Switching...");
+      setSwitchFirmwareSlot();
+      break;
+
+    case lcsCancel:
+      sendLuaCommandResponse(cmd, lcsIdle, STR_EMPTYSPACE);
+      break;
+
+    default:
       sendLuaCommandResponse(cmd, cmd->step, cmd->info);
       break;
   }
@@ -677,6 +708,9 @@ static void registerLuaParameters()
         }
       }
     });
+    #if defined(PLATFORM_ESP32)
+    registerLUAParameter(&luaFirmwareSlot, luahandFirmwareSlot);
+    #endif
     #if defined(TARGET_TX_FM30)
     registerLUAParameter(&luaBluetoothTelem, [](struct luaPropertiesCommon *item, uint8_t arg) {
       digitalWrite(GPIO_PIN_BLUETOOTH_EN, !arg);
