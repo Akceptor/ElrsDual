@@ -873,6 +873,11 @@ void TXModuleEndpoint::registerParameters()
     registerParameter(&luaTlmRate, [this](propertiesCommon *item, uint8_t arg) {
       SetTlmRatio(arg);
     });
+#if defined(PLATFORM_ESP32)
+    registerParameter(&luaFirmwareSlot, [this](propertiesCommon *item, uint8_t arg) {
+      handleFirmwareSlot(item, arg);
+    });
+#endif
     if (!firmwareOptions.is_airport)
     {
       registerParameter(&luaSwitch, [this](propertiesCommon *item, uint8_t arg) {
