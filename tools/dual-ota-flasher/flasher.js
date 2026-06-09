@@ -108,6 +108,20 @@ function downloadBytes(data, filename) {
 
 const READ_CHUNK = 0x20000; // 128 KB per readFlash call (large single reads stall)
 
+async function readChunk(addr, len) {
+  let lastErr;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      return await esploader.readFlash(addr, len, () => {});
+    } catch (e) {
+      lastErr = e;
+      log("  chunk @0x" + addr.toString(16) + " attempt " + attempt + "/4 failed: " + e.message);
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+  throw lastErr;
+}
+
 async function readSlot(addr, filename) {
   if (!esploader) { log("Connect first."); return; }
   setBusy(true);
@@ -117,7 +131,7 @@ async function readSlot(addr, filename) {
     let off = 0;
     while (off < APP_SIZE) {
       const len = Math.min(READ_CHUNK, APP_SIZE - off);
-      const part = await esploader.readFlash(addr + off, len, () => {});
+      const part = await readChunk(addr + off, len);
       out.set(part.length === len ? part : part.subarray(0, len), off);
       off += len;
       log("  " + Math.floor((off / APP_SIZE) * 100) + "%");
@@ -125,7 +139,7 @@ async function readSlot(addr, filename) {
     downloadBytes(out, filename);
     log("Saved " + filename);
   } catch (e) {
-    log("Read error: " + e.message);
+    log("Read error: " + e.message + "  — try a lower baud (115200) before connecting.");
   } finally {
     setBusy(false);
   }
