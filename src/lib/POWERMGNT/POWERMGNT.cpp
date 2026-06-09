@@ -46,6 +46,15 @@ PowerLevels_e crsfPowerToPower(uint8_t crsfpower)
 #include "device.h"
 #include "helpers.h"
 
+#if defined(PLATFORM_ESP32)
+#include <esp_ota_ops.h>
+static const char* nvsPwrCalNamespace()
+{
+    const esp_partition_t *p = esp_ota_get_running_partition();
+    return (p && p->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) ? "PWRCAL1" : "PWRCAL0";
+}
+#endif
+
 /*
  * Moves the power management values and special cases out of the main code and into `targets.h`.
  *
@@ -192,7 +201,7 @@ void POWERMGNT::LoadCalibration()
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK( err );
-    ESP_ERROR_CHECK(nvs_open("PWRCALI", NVS_READWRITE, &handle));
+    ESP_ERROR_CHECK(nvs_open(nvsPwrCalNamespace(), NVS_READWRITE, &handle));
 
     uint32_t version;
     if(nvs_get_u32(handle, "calversion", &version) != ESP_ERR_NVS_NOT_FOUND
