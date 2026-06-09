@@ -535,6 +535,32 @@ void TXModuleEndpoint::handleWifiBle(propertiesCommon *item, uint8_t arg)
   }
 }
 
+#if defined(PLATFORM_ESP32)
+void TXModuleEndpoint::handleFirmwareSlot(propertiesCommon *item, uint8_t arg)
+{
+  commandParameter *cmd = (commandParameter *)item;
+  switch ((commandStep_e)arg)
+  {
+    case lcsClick:
+      sendCommandResponse(cmd, lcsAskConfirm, "Switch FW Slot?");
+      break;
+
+    case lcsConfirmed:
+      sendCommandResponse(cmd, lcsExecuting, "Switching...");
+      setSwitchFirmwareSlot();
+      break;
+
+    case lcsCancel:
+      sendCommandResponse(cmd, lcsIdle, STR_EMPTYSPACE);
+      break;
+
+    default:
+      sendCommandResponse(cmd, cmd->step, cmd->info);
+      break;
+  }
+}
+#endif
+
 void TXModuleEndpoint::handleSimpleSendCmd(propertiesCommon *item, uint8_t arg)
 {
   const char *msg = "Sending...";
