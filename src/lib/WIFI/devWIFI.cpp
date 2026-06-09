@@ -18,6 +18,7 @@
 #include <Update.h>
 #include <esp_partition.h>
 #include <esp_ota_ops.h>
+#include <nvs.h>
 #include <soc/uart_pins.h>
 #else
 #include <ESP8266WiFi.h>
@@ -1063,10 +1064,29 @@ static int getRunningSlot()
     return (r != nullptr && r->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) ? 1 : 0;
 }
 
+static void writeSlotVersion()
+{
+    nvs_handle_t h;
+    if (nvs_open("elrs_ota", NVS_READWRITE, &h) != ESP_OK) return;
+    nvs_set_str(h, (getRunningSlot() == 0) ? "s0ver" : "s1ver", VERSION);
+    nvs_commit(h);
+    nvs_close(h);
+}
+
 static void WebGetSlot(AsyncWebServerRequest *request)
 {
-    char buf[24];
-    snprintf(buf, sizeof(buf), "{\"running\":%d}", getRunningSlot());
+    char s0[32] = {0}, s1[32] = {0};
+    nvs_handle_t h;
+    if (nvs_open("elrs_ota", NVS_READONLY, &h) == ESP_OK) {
+        size_t len = sizeof(s0);
+        nvs_get_str(h, "s0ver", s0, &len);
+        len = sizeof(s1);
+        nvs_get_str(h, "s1ver", s1, &len);
+        nvs_close(h);
+    }
+    char buf[128];
+    snprintf(buf, sizeof(buf), "{\"running\":%d,\"slot0\":\"%s\",\"slot1\":\"%s\"}",
+             getRunningSlot(), s0, s1);
     request->send(200, "application/json", buf);
 }
 
@@ -1116,6 +1136,7 @@ static void startServices()
   server.on("/connect", WebUpdateConnect);
   server.on("/config", HTTP_GET, GetConfiguration);
 #if defined(PLATFORM_ESP32)
+  writeSlotVersion();
   server.on("/slot", HTTP_GET, WebGetSlot);
   server.addHandler(new AsyncCallbackJsonWebHandler("/slot", WebSetSlot));
 #endif
