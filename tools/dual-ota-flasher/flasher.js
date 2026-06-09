@@ -106,17 +106,23 @@ function downloadBytes(data, filename) {
   URL.revokeObjectURL(url);
 }
 
+const READ_CHUNK = 0x20000; // 128 KB per readFlash call (large single reads stall)
+
 async function readSlot(addr, filename) {
   if (!esploader) { log("Connect first."); return; }
   setBusy(true);
-  log("Reading " + filename + " (" + APP_SIZE + " bytes) — ~1 minute…");
-  let lastPct = -10;
+  log("Reading " + filename + " (" + APP_SIZE + " bytes) in " + (APP_SIZE / READ_CHUNK) + " chunks…");
+  const out = new Uint8Array(APP_SIZE);
   try {
-    const data = await esploader.readFlash(addr, APP_SIZE, (pkt, progress, total) => {
-      const pct = Math.floor((progress / total) * 100);
-      if (pct >= lastPct + 10) { lastPct = pct; log("  " + pct + "%"); }
-    });
-    downloadBytes(data, filename);
+    let off = 0;
+    while (off < APP_SIZE) {
+      const len = Math.min(READ_CHUNK, APP_SIZE - off);
+      const part = await esploader.readFlash(addr + off, len, () => {});
+      out.set(part.length === len ? part : part.subarray(0, len), off);
+      off += len;
+      log("  " + Math.floor((off / APP_SIZE) * 100) + "%");
+    }
+    downloadBytes(out, filename);
     log("Saved " + filename);
   } catch (e) {
     log("Read error: " + e.message);
