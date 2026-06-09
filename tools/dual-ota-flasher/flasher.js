@@ -18,6 +18,14 @@ const terminal = {
   write(data) { logEl.textContent += data; logEl.scrollTop = logEl.scrollHeight; },
 };
 
+const ACTION_IDS = ["connect", "flash", "read0", "read1", "active"];
+function setBusy(busy) {
+  for (const id of ACTION_IDS) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = busy;
+  }
+}
+
 if (!navigator.serial) {
   document.getElementById("unsupported").style.display = "block";
   document.getElementById("connect").disabled = true;
@@ -26,8 +34,9 @@ if (!navigator.serial) {
 document.getElementById("connect").addEventListener("click", async () => {
   try {
     const port = await navigator.serial.requestPort();
+    const baud = parseInt(document.getElementById("baud").value, 10) || 460800;
     transport = new Transport(port, true);
-    esploader = new ESPLoader({ transport, baudrate: 460800, terminal, debugLogging: false });
+    esploader = new ESPLoader({ transport, baudrate: baud, terminal, debugLogging: false });
     const chip = await esploader.main();
     log("Connected: " + chip);
     document.getElementById("controls").style.display = "block";
@@ -51,8 +60,7 @@ document.getElementById("flash").addEventListener("click", async () => {
   const f4 = document.getElementById("v4file").files[0];
   if (!esploader) { log("Connect first."); return; }
   if (!f3 || !f4) { log("Pick both the v3.x and v4.x images first."); return; }
-  const btn = document.getElementById("flash");
-  btn.disabled = true;
+  setBusy(true);
   try {
     log("Loading images…");
     const [bootloader, partitions, bootApp0, app0, app1] = await Promise.all([
@@ -84,7 +92,7 @@ document.getElementById("flash").addEventListener("click", async () => {
   } catch (e) {
     log("Flash error: " + e.message);
   } finally {
-    btn.disabled = false;
+    setBusy(false);
   }
 });
 
@@ -100,15 +108,20 @@ function downloadBytes(data, filename) {
 
 async function readSlot(addr, filename) {
   if (!esploader) { log("Connect first."); return; }
+  setBusy(true);
   log("Reading " + filename + " (" + APP_SIZE + " bytes) — ~1 minute…");
+  let lastPct = -10;
   try {
     const data = await esploader.readFlash(addr, APP_SIZE, (pkt, progress, total) => {
-      if (progress === total) log("  read complete");
+      const pct = Math.floor((progress / total) * 100);
+      if (pct >= lastPct + 10) { lastPct = pct; log("  " + pct + "%"); }
     });
     downloadBytes(data, filename);
     log("Saved " + filename);
   } catch (e) {
     log("Read error: " + e.message);
+  } finally {
+    setBusy(false);
   }
 }
 
@@ -117,6 +130,7 @@ document.getElementById("read1").addEventListener("click", () => readSlot(APP1_A
 
 document.getElementById("active").addEventListener("click", async () => {
   if (!esploader) { log("Connect first."); return; }
+  setBusy(true);
   try {
     const od = await esploader.readFlash(OTADATA_ADDR, OTADATA_SIZE, () => {});
     const dv = new DataView(od.buffer, od.byteOffset, od.byteLength);
@@ -134,5 +148,7 @@ document.getElementById("active").addEventListener("click", async () => {
     log("Currently boots: " + msg + "   [seq app0=" + s0 + " app1=" + s1 + "]");
   } catch (e) {
     log("otadata read error: " + e.message);
+  } finally {
+    setBusy(false);
   }
 });

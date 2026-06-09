@@ -24,7 +24,16 @@
      Web Serial is not available in this browser. Use Chrome or Edge over
      http://localhost or https.</p>
 
-  <button id="connect">Connect</button>
+  <div class="row">
+    <label for="baud">Baud:</label>
+    <select id="baud">
+      <option value="115200">115200</option>
+      <option value="230400">230400</option>
+      <option value="460800" selected>460800</option>
+      <option value="921600">921600</option>
+    </select>
+    <button id="connect">Connect</button>
+  </div>
 
   <div id="controls">
     <h2>Write both slots</h2>
