@@ -542,10 +542,6 @@ void TXModuleEndpoint::handleFirmwareSlot(propertiesCommon *item, uint8_t arg)
   switch ((commandStep_e)arg)
   {
     case lcsClick:
-      sendCommandResponse(cmd, lcsAskConfirm, "Switch FW Slot?");
-      break;
-
-    case lcsConfirmed:
       sendCommandResponse(cmd, lcsExecuting, "Switching...");
       setSwitchFirmwareSlot();
       break;
