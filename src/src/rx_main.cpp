@@ -64,6 +64,10 @@
 #endif
 // ARDUINO_CORE_INVERT_FIX PT1 end
 
+#if defined(PLATFORM_ESP32)
+#include "esp_ota_ops.h"
+#endif
+
 ///LUA///
 #define LUA_MAX_PARAMS 32
 ////
@@ -2061,6 +2065,18 @@ void resetConfigAndReboot()
 
 void setup()
 {
+#if defined(PLATFORM_ESP32)
+    // --- per-reboot OTA slot alternation ---
+    // Arm the *other* OTA slot so the next reboot runs the other firmware
+    // version. Done first thing in setup() so it holds even if later init hangs.
+    {
+        const esp_partition_t *nextSlot = esp_ota_get_next_update_partition(NULL);
+        if (nextSlot != NULL)
+        {
+            esp_ota_set_boot_partition(nextSlot);
+        }
+    }
+#endif
     #if defined(TARGET_UNIFIED_RX)
     hardwareConfigured = options_init();
     if (!hardwareConfigured)
@@ -2163,6 +2179,17 @@ void main_loop()
 void loop()
 #endif
 {
+#if defined(PLATFORM_ESP32)
+    // One-shot: report which OTA slot (= firmware version) is running.
+    // app0 == v3.6.3, app1 == v4.0.1 per the flash layout.
+    // Only emits when built with -DDEBUG_LOG; otherwise DBGLN is a no-op.
+    static bool reportedBootSlot = false;
+    if (!reportedBootSlot)
+    {
+        reportedBootSlot = true;
+        DBGLN("[OTA-TOGGLE] running slot=%s", esp_ota_get_running_partition()->label);
+    }
+#endif
     unsigned long now = millis();
 
     if (MspReceiver.HasFinishedData())
