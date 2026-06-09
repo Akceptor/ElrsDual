@@ -245,6 +245,17 @@
 								<input size="40" id="uid" name="uid" type="text" class="array" readonly/>
 							</div>
 						</div>
+						<div id="fwversion">
+							<h2>Firmware Version</h2>
+							<div class="mui-radio">
+								<label><input type="radio" name="bootslot" value="0"/> ELRS v3.x <span id="slot0this"></span></label>
+							</div>
+							<div class="mui-radio">
+								<label><input type="radio" name="bootslot" value="1"/> ELRS v4.x <span id="slot1this"></span></label>
+							</div>
+							<button type="button" class="mui-btn mui-btn--primary" id="saveslot">Save</button>
+							<span id="slotmsg"></span>
+						</div>
 						<div id="serial-config">
 							<h2>Serial Protocol</h2>
 							Set the protocol used to communicate with the flight controller or other external devices.
@@ -376,4 +387,26 @@
 </body>
 <script src="mui.js"></script>
 <script src="scan.js"></script>
+<script>
+(function () {
+    fetch('/slot').then(r => r.json()).then(d => {
+        document.getElementById('slot' + d.running + 'this').textContent = '(this)';
+        var el = document.querySelector('input[name=bootslot][value="' + d.running + '"]');
+        if (el) el.checked = true;
+    });
+    document.getElementById('saveslot').addEventListener('click', function () {
+        var sel = document.querySelector('input[name=bootslot]:checked');
+        if (!sel) return;
+        fetch('/slot', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({slot: parseInt(sel.value, 10)})
+        }).then(r => r.json()).then(function (d) {
+            document.getElementById('slotmsg').textContent =
+                d.status === 'current' ? 'Already running this version' :
+                d.status === 'rebooting' ? 'Rebooting…' : 'Error switching version';
+        });
+    });
+})();
+</script>
 </html>
