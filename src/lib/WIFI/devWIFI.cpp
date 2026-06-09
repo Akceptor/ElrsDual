@@ -104,6 +104,22 @@ void setWifiUpdateMode()
   setConnectionState(wifiUpdate);
 }
 
+#if defined(PLATFORM_ESP32)
+void setSwitchFirmwareSlot()
+{
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  esp_partition_subtype_t targetSub =
+      (running && running->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_0)
+          ? ESP_PARTITION_SUBTYPE_APP_OTA_1
+          : ESP_PARTITION_SUBTYPE_APP_OTA_0;
+  const esp_partition_t *target =
+      esp_partition_find_first(ESP_PARTITION_TYPE_APP, targetSub, NULL);
+  if (target)
+    esp_ota_set_boot_partition(target);
+  scheduleRebootTime(400);
+}
+#endif
+
 /** Is this an IP? */
 static boolean isIp(const String& str)
 {
