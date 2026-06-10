@@ -242,4 +242,58 @@ does not apply to the v3 branch.
 0x1F0000  OTA_1 → v3.6.3 firmware (1920 KB)
 ```
 
-Slot switching: Lua menu "FW Slot" selector, or WebUI → Options → Firmware Version.
+Slot switching (three independent ways): the Lua menu "FW Slot" selector, the
+WebUI → Options → Firmware Version selector, or — with the slot-switch bootloader
+below — **3 rapid power cycles** (no computer at all).
+
+## Slot-switch bootloader (no-computer switching)
+
+A custom second-stage bootloader that flips the active OTA slot on **3 quick power
+cycles** (each off/on within ~2 s). It writes only `0x1000`; the partition table and
+both app images are untouched. Project: `bootloader-slot-switch/` (standalone
+ESP-IDF, not built by PlatformIO). Source: `branch design/bootloader-slot-switch`.
+
+### How it works
+Each boot it increments a counter in the `coredump` flash sector (`0x3f0000`), then
+either flips `otadata` to the other slot (on the 3rd cycle) or busy-waits ~2 s and
+clears the counter. A *rapid* cycle interrupts the wait so the count sticks; a
+*normal* boot runs past it and clears. Worst case is "didn't switch", never a wrong
+switch. Cost: ~2 s added to every normal boot. Tuning `#define`s
+(`SS_THRESHOLD`, `SS_SETTLE_MS`) live in `bootloader_components/slot_switch/hook.c`.
+
+### Build it
+```bash
+. ~/esp-idf/export.sh                       # ESP-IDF v5/v6 ok; bootloader chainloads IDF-4.4 ELRS images
+cd bootloader-slot-switch
+idf.py set-target esp32 && idf.py bootloader
+# -> build/bootloader/bootloader.bin
+```
+The build is for plain ESP32; the same binary works on any plain-ESP32 min_spiffs
+board (4 MB or 8 MB) — flash mode/size/freq are patched into the header at flash
+time. Different chip families (S3/C3/…) need `idf.py set-target <chip>`.
+
+### Flash it — via the web flasher (easiest, no toolchain)
+1. `cd tools/dual-ota-flasher && python3 -m http.server 8000`, open in Chrome/Edge.
+2. **Connect**, then click **Flash slot-switch bootloader (0x1000)**. It writes the
+   bundled `bootloader-slotswitch.bin` to `0x1000` only — apps stay. (Rebuild that
+   bundled blob from `bootloader-slot-switch/` for non-4 MB boards.)
+
+### Flash it — via esptool (only 0x1000)
+```bash
+# UART board:
+python3 -m esptool --chip esp32 -p <port> -b 460800 write-flash \
+  --flash-size <4MB|8MB> 0x1000 bootloader-slot-switch/build/bootloader/bootloader.bin
+
+# ETX passthrough board (run from src/, on a branch with the vendored-esptool fix):
+python3 -c "
+import sys; sys.path.insert(0,'python')
+import ETXinitPassthrough, esptool
+ETXinitPassthrough.etx_passthrough_init('<port>', 460800)
+esptool.main(['--chip','esp32','--port','<port>','--baud','460800',
+  '--before','no_reset','--after','hard_reset','write_flash',
+  '-z','--flash_mode','dio','--flash_freq','40m','--flash_size','detect',
+  '0x1000','../bootloader-slot-switch/build/bootloader/bootloader.bin'])
+"
+```
+To revert to stock behavior, reflash a normal ELRS build (restores the stock
+bootloader at `0x1000`).
