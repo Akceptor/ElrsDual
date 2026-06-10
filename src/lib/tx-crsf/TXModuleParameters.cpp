@@ -98,6 +98,16 @@ static selectionParameter luaTlmRate = {
     tlmBandwidth
 };
 
+#if defined(PLATFORM_ESP32)
+static constexpr char luastrFwSlots[] = "Slot 0;Slot 1";
+static selectionParameter luaFirmwareSlot = {
+    {"FW Slot", CRSF_TEXT_SELECTION},
+    0,
+    luastrFwSlots,
+    STR_EMPTYSPACE
+};
+#endif
+
 //----------------------------POWER------------------
 static folderParameter luaPowerFolder = {
     {"TX Power", CRSF_FOLDER},pwrFolderDynamicName
@@ -323,6 +333,10 @@ extern bool BackpackTelemReadyToSend;
 extern bool TxBackpackWiFiReadyToSend;
 extern bool VRxBackpackWiFiReadyToSend;
 extern void setWifiUpdateMode();
+#if defined(PLATFORM_ESP32)
+extern uint8_t getFirmwareSlot();
+extern void setFirmwareSlot(uint8_t slot);
+#endif
 
 void TXModuleEndpoint::supressCriticalErrors()
 {
@@ -523,6 +537,7 @@ void TXModuleEndpoint::handleWifiBle(propertiesCommon *item, uint8_t arg)
       break;
   }
 }
+
 
 void TXModuleEndpoint::handleSimpleSendCmd(propertiesCommon *item, uint8_t arg)
 {
@@ -836,6 +851,12 @@ void TXModuleEndpoint::registerParameters()
     registerParameter(&luaTlmRate, [this](propertiesCommon *item, uint8_t arg) {
       SetTlmRatio(arg);
     });
+#if defined(PLATFORM_ESP32)
+    luaFirmwareSlot.value = getFirmwareSlot();
+    registerParameter(&luaFirmwareSlot, [](propertiesCommon *item, uint8_t arg) {
+      if (arg != getFirmwareSlot()) setFirmwareSlot(arg);
+    });
+#endif
     if (!firmwareOptions.is_airport)
     {
       registerParameter(&luaSwitch, [this](propertiesCommon *item, uint8_t arg) {
