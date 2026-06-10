@@ -28,6 +28,25 @@ Open <http://localhost:8000> in Chrome/Edge.
 Images must already be configured (target/binding/domain) with the ELRS configurator
 or official web flasher; this tool only places `.bin`s into slots.
 
+## Slot-switch bootloader (no-computer switching)
+
+**Flash slot-switch bootloader (0x1000)** installs a custom second-stage bootloader
+(`bootloader-slotswitch.bin`) that lets you switch the active OTA slot with **3 quick
+power cycles** (each off/on within ~2 s) — no computer, no WiFi. Only `0x1000` is
+written; the app slots and partition table are untouched, so you can run it on a board
+that already has v3/v4 flashed. After installing it, every normal boot waits ~2 s (the
+"settle window" that distinguishes a deliberate rapid cycle from a normal power-on)
+before the app starts.
+
+Notes:
+- Built for **4 MB ESP32** with the standard `min_spiffs` layout (otadata `0xe000`,
+  ota_0 `0x10000`, ota_1 `0x1f0000`, counter in the `coredump` sector `0x3f0000`).
+  Rebuild from `bootloader-slot-switch/` for other flash sizes.
+- The **Set active + reboot** button still works as a software alternative to the
+  power-cycle gesture.
+- To revert to stock behavior, reflash a normal ELRS build (which restores the stock
+  bootloader at `0x1000`).
+
 ---
 
 ## Building firmware from source

@@ -18,7 +18,7 @@ const terminal = {
   write(data) { logEl.textContent += data; logEl.scrollTop = logEl.scrollHeight; },
 };
 
-const ACTION_IDS = ["connect", "flash", "read0", "read1", "active", "setslot"];
+const ACTION_IDS = ["connect", "flash", "read0", "read1", "active", "setslot", "flashboot"];
 function setBusy(busy) {
   for (const id of ACTION_IDS) {
     const el = document.getElementById(id);
@@ -200,6 +200,28 @@ function buildOtadata(slot) {
   // record 1 at 0x1000 stays all 0xFF → invalid
   return buf;
 }
+
+document.getElementById("flashboot").addEventListener("click", async () => {
+  if (!esploader) { log("Connect first."); return; }
+  setBusy(true);
+  try {
+    log("Loading slot-switch bootloader…");
+    const boot = await fetchBin("bootloader-slotswitch.bin");
+    log("Writing bootloader to 0x1000 (" + boot.length + " bytes)…");
+    await esploader.writeFlash({
+      fileArray: [{ data: boot, address: 0x1000 }],
+      flashMode: "keep", flashFreq: "keep", flashSize: "keep",
+      eraseAll: false, compress: true,
+      reportProgress: (i, written, total) => { if (written === total) log("  bootloader written"); },
+    });
+    await esploader.after("hard_reset");
+    log("Slot-switch bootloader installed. 3 quick power cycles now flips the slot.");
+  } catch (e) {
+    log("Bootloader flash error: " + e.message);
+  } finally {
+    setBusy(false);
+  }
+});
 
 document.getElementById("setslot").addEventListener("click", async () => {
   if (!esploader) { log("Connect first."); return; }

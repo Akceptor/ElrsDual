@@ -53,6 +53,13 @@
     </div>
     <button id="active">Read active</button>
     <button id="setslot">Set active + reboot</button>
+
+    <h2>Slot-switch bootloader</h2>
+    <p>Installs the custom second-stage bootloader (to <code>0x1000</code> only;
+       app slots untouched). With it, <b>3 quick power cycles</b> (each off/on
+       within ~2&nbsp;s) flips the active slot — no computer needed. Normal boots
+       wait ~2&nbsp;s before starting. Built for 4&nbsp;MB ESP32 / min_spiffs.</p>
+    <button id="flashboot">Flash slot-switch bootloader (0x1000)</button>
   </div>
 
   <h2>Log</h2>
