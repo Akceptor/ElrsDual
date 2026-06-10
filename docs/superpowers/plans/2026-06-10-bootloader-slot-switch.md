@@ -4,44 +4,62 @@
 
 **Goal:** Build a custom ESP32 second-stage bootloader that flips the active OTA slot after 3 rapid power cycles, so a user can switch between two opaque stock ELRS firmware images using only the radio — no PC, no source changes to the apps.
 
-**Architecture:** A standalone ESP-IDF v4.4.x bootloader build adds a `bootloader_after_init()` hook. The hook keeps a `{magic,count,last_boot_rtc_us}` struct in the bootloader's reserved RTC retain-memory `custom` area, uses the RTC slow clock to tell rapid cycles (<5 s gap) from normal ones, and on the 3rd rapid cycle rewrites the `otadata` partition (fixed at 0xE000) to select the other OTA slot. The stock partition table and both app images are never modified. Only `bootloader.bin` is flashed to 0x1000.
+**Architecture (as built):** A standalone ESP-IDF bootloader adds a `bootloader_after_init()` hook. The hook keeps a `uint32_t` power-cycle counter in a dedicated flash sector; on each boot it increments the counter, and either (a) on reaching 3 rewrites the `otadata` partition (fixed at `0xE000`) to select the other OTA slot, or (b) **busy-waits ~2 s then clears the counter**. A *rapid* cycle interrupts that settle window before the clear (so the count sticks); a *normal* boot runs past it (counter clears). No RTC, no app cooperation. The stock partition table and both app images are never modified — only `bootloader.bin` is written to `0x1000`.
 
-**Tech Stack:** ESP-IDF v4.4.x (matching arduino-esp32 3.20016's IDF base), C, `bootloader_support` APIs (`bootloader_common_*`, `bootloader_flash_*`), `soc/rtc.h` (`rtc_time_get`), esptool.py for flashing.
+> **Why not RTC?** The original design used an RTC-retained counter + RTC clock. Bench-tested and **rejected**: RTC FAST memory does not survive `POWERON_RESET` on ESP32 (it's a deep-sleep feature). See the spec's "RTC-retained memory does NOT work" finding. The flash-counter + settle-window mechanism replaced it and is verified working.
+
+**Tech Stack:** ESP-IDF (v6 used; v4.4 also fine — the IDF v6 bootloader chainloads arduino-esp32 3.20016 / IDF-4.4 app images, **verified on hardware**), C, `bootloader_support` APIs (`bootloader_common_ota_select_crc/valid`, `bootloader_flash_read/write/erase_sector`), `esp_rom_delay_us`, esptool for flashing.
 
 **Spec:** `docs/superpowers/specs/2026-06-10-bootloader-slot-switch-design.md`
+
+---
+
+## Implementation status (2026-06-10)
+
+Built and verified on a **LilyGo v2 TX (ESP32-PICO-D4, 4 MB)**. Project lives at
+repo-root `bootloader-slot-switch/` (committed on branch `design/bootloader-slot-switch`).
+
+| Task | Status |
+|------|--------|
+| 1 — custom bootloader + running hook | ✅ done, verified (`slot_switch hook alive` → app chainloads) |
+| 3 — power-cycle detector | ✅ **done as flash-counter + settle window** (RTC pivot); rapid→count 1·2·3, normal→steady |
+| 4 — detection logic | ✅ folded into the hook (no separate state-machine file) |
+| 5/6 — otadata flip + wiring | ✅ done, verified (ota_0↔ota_1 alternates on 3 rapid cycles, persists) |
+| LilyGo full deploy | ✅ ELRS v3.6.3→ota_0, v4→ota_1, our bootloader@0x1000, EU_433 (bonus, done) |
+| web flasher button | ✅ done on `dual-ota-flasher` (`Flash slot-switch bootloader (0x1000)`) |
+| 7/8 — real-target deploy (BayckRC/TX15) | ⏳ remaining (8 MB BayckRC: rebuild bootloader `FLASHSIZE_8MB`) |
+| 9 — docs / build-flash skill section | ⏳ remaining |
+
+**The actual implementation is `bootloader-slot-switch/bootloader_components/slot_switch/hook.c`** (single file: counter + settle + otadata flip). Tasks 3–6 below are kept for history; the "as built" code is in that file and summarized in Task 3.
 
 ---
 
 ## Domain notes for the implementer (read first)
 
 - **There is no host unit-test harness for bootloader code.** It runs before any OS. "Tests" in this plan are **on-device observations**: flash the bootloader, watch the boot log over UART, power-cycle, and check observable outcomes. Each task gives explicit PASS/FAIL criteria.
-- **Do all bench work on the BayckRC Nano Gemini over plain UART** (`/dev/tty.usbserial-2120`). Its USB-serial exposes the ESP32 boot ROM/2nd-stage log directly, which we need to read. The TX15 (internal, ETX passthrough) is validated last, once the logic is proven.
-- **The ESP32 boot log is emitted by the 2nd-stage bootloader over GPIO1/U0TXD at 115200.** A custom bootloader with `ESP_LOGx` calls prints during boot — that is our primary instrument.
-- **Fixed flash layout (min_spiffs.csv, both targets):** `otadata` partition at offset `0xE000`, size `0x2000` (two 0x1000 sub-sectors); `ota_0` selected when active `ota_seq` is odd, `ota_1` when even (`slot = (ota_seq - 1) % 2`). The bootloader at `0x1000` may occupy up to `0x7000` bytes (table is at `0x8000`).
-- **Safety property to preserve:** worst case must be "did not switch," never "switched by accident." Never increment on cold boot or on gaps ≥ 5 s.
+- **Bench work was done on a LilyGo v2 (ESP32-PICO-D4) over plain UART**, whose USB-serial exposes the ESP32 boot ROM / 2nd-stage log directly. Any plain-ESP32 board with a readable UART works; ETX-passthrough boards (TX15 internal) are validated last.
+- **The ESP32 boot log is emitted by the 2nd-stage bootloader over GPIO1/U0TXD at 115200.** A custom bootloader with `ESP_LOGx` calls prints during boot — that is our primary instrument. (Flash-counter behavior is testable deterministically with timed EN resets, since flash persists across reset — no physical power cycling needed.)
+- **Fixed flash layout (min_spiffs.csv):** `otadata` at `0xE000` (two `0x1000` sub-sectors); `ota_0` active when `ota_seq` is odd, `ota_1` when even (`slot = (ota_seq - 1) % 2`); counter sector reuses `coredump` at `0x3F0000`. The bootloader at `0x1000` may occupy up to `0x7000` bytes (table at `0x8000`).
+- **Safety property:** worst case must be "did not switch," never "switched by accident." A normal boot always clears the counter; only a sub-2 s rapid off/on chain accumulates.
 
-### File structure (created under a new top-level dir in the repo)
+### File structure (as built, under a top-level dir in the repo)
+
+The RTC-era multi-file split was unnecessary — the logic is small and lives in one hook file:
 
 ```
 bootloader-slot-switch/                 # standalone ESP-IDF project (NOT built by PlatformIO)
   CMakeLists.txt                        # IDF project file, sets target esp32
-  sdkconfig.defaults                    # flash DIO/40m, custom RTC reserve, no secure boot
-  main/CMakeLists.txt                   # minimal app (chainloaded only during bring-up tests)
-  main/main.c                           # tiny placeholder app for Task 1 bring-up only
+  sdkconfig.defaults                    # flash DIO/40m/4MB, no secure boot, custom partition table
+  partitions.csv                        # dual-OTA bring-up table (mirrors min_spiffs offsets) + slotctr
+  main/CMakeLists.txt
+  main/main.c                           # bring-up app: prints its running OTA slot
   bootloader_components/
     slot_switch/
-      CMakeLists.txt                    # registers the bootloader hook component
-      slot_switch.h                     # struct + constants + public API
-      slot_switch_state.c               # RTC counter state machine (Task 4)
-      slot_switch_otadata.c             # otadata read + flip (Task 5)
-      hook.c                            # bootloader_after_init() wiring (Task 1 stub, Task 6 full)
-  tools/
-    backup-bootloader.sh                # Task 2
-    flash-bootloader.sh                 # Task 7/8
-  README.md                             # Task 9
+      CMakeLists.txt                    # idf_component_register(... PRIV_REQUIRES bootloader_support esp_rom spi_flash)
+      hook.c                            # counter + settle window + otadata flip (the whole feature)
 ```
 
-`slot_switch_state.c` owns the "is this a rapid cycle / what's the count" decision. `slot_switch_otadata.c` owns flash reads/writes and CRC. `hook.c` is the thin wiring that the IDF bootloader calls. Splitting state from flash keeps each file small and lets the state machine be reasoned about without flash details.
+`hook.c` is the single source of truth for the mechanism. Still to create (Task 9): a `README.md` and an optional flash helper.
 
 ---
 
@@ -153,7 +171,7 @@ void bootloader_after_init(void) {
 
 ```bash
 cd ~/esp/esp-idf-v4.4 && . ./export.sh
-cd /Users/vostapiv/Drones/ExpressLRS/bootloader-slot-switch
+cd bootloader-slot-switch
 idf.py set-target esp32 && idf.py bootloader
 ls build/bootloader/bootloader.bin
 ```
@@ -172,7 +190,7 @@ Expected log sequence (PASS): `slot_switch hook alive` appears during boot, foll
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /Users/vostapiv/Drones/ExpressLRS
+cd <repo-root>
 git add bootloader-slot-switch/CMakeLists.txt bootloader-slot-switch/sdkconfig.defaults \
         bootloader-slot-switch/main bootloader-slot-switch/bootloader_components
 git commit -m "feat(bootloader): minimal custom bootloader with running after_init hook"
@@ -211,7 +229,7 @@ Expected: prints "Backed up stock bootloader … 28672 bytes".
 - [ ] **Step 3: Back up TX15 (via ETX passthrough)**
 
 ```bash
-cd /Users/vostapiv/Drones/ExpressLRS/src
+cd src
 python3 -c "
 import sys; sys.path.insert(0,'python')
 import ETXinitPassthrough, esptool
@@ -226,384 +244,79 @@ Expected: a 28672-byte file is written.
 - [ ] **Step 4: Commit the backups and script**
 
 ```bash
-cd /Users/vostapiv/Drones/ExpressLRS
+cd <repo-root>
 git add bootloader-slot-switch/tools/backup-bootloader.sh bootloader-slot-switch/backups
 git commit -m "chore(bootloader): backup script + stock bootloader images for both devices"
 ```
 
 ---
 
-## Task 3: Bench-test RTC retain memory across power cycles (THE unknown)
+## Task 3 (as built): Flash counter + settle-window detector + otadata flip
 
-This validates the spec's one empirical risk before building real logic: does RTC retain-memory survive a rapid off/on, and does the RTC slow clock advance let us tell rapid from slow?
+> Supersedes the original RTC-based Tasks 3–6. Implemented as a single hook file
+> and verified on hardware. Files: `bootloader-slot-switch/partitions.csv`,
+> `.../bootloader_components/slot_switch/{hook.c,CMakeLists.txt}`,
+> `.../main/main.c`, `sdkconfig.defaults`. The authoritative code is `hook.c`.
 
-**Files:**
-- Modify: `bootloader-slot-switch/bootloader_components/slot_switch/hook.c`
+**Mechanism** (no RTC, no app cooperation):
+- Counter `uint32_t` in a dedicated flash sector (erased = 0).
+- Each boot: `n = read; next = n + 1`.
+  - `next >= SS_THRESHOLD (3)` → `ss_flip_otadata()`, clear counter, boot.
+  - else → write `next`, busy-wait `SS_SETTLE_MS (2000)`, clear counter, boot.
+- A rapid cycle powers off *during* the settle wait → the increment persists.
+  A normal boot runs past it → counter clears. Worst case is "didn't switch",
+  never a wrong switch.
 
-- [ ] **Step 1: Instrument the hook to log reboot counter + RTC time**
+**otadata flip** runs in `bootloader_after_init` (before partition selection, so it
+takes effect the *same* boot): read both `esp_ota_select_entry_t` at `0xE000`/`0xF000`,
+take the highest valid `ota_seq`, write the inactive sector with `seq = max+1` chosen
+so `(seq-1) % 2 == other_slot`, CRC via `bootloader_common_ota_select_crc`.
 
-Replace `hook.c` body (note: no `bootloader_hooks.h` include; keep the
-`bootloader_hooks_include` anchor symbol so the linker retains the hooks):
-```c
-#include "bootloader_common.h"
-#include "esp_image_format.h"   // rtc_retain_mem_t
-#include "soc/rtc.h"            // rtc_time_get
-#include "esp_rom_crc.h"        // esp_rom_crc32_le
-#include "esp_log.h"
-#include <string.h>
+**Counter storage:** a dedicated `slotctr` sector. The bring-up table places it at
+`0x3F0000` (= min_spiffs `coredump` slot), so the same offset works on real targets
+without changing the partition table.
 
-static const char *TAG = "slot_switch";
+**Component CMake:**
+`idf_component_register(SRCS "hook.c" PRIV_REQUIRES bootloader_support esp_rom spi_flash)`
+— `spi_flash` is required because `bootloader_flash_priv.h` transitively includes
+`spi_flash_mmap.h`.
 
-// Magic marks our custom RTC area as initialized.
-#define SS_MAGIC 0x5701A700u
+**`sdkconfig.defaults`:** `FLASHMODE_DIO`, `FLASHFREQ_40M`, `FLASHSIZE_4MB` (use
+`FLASHSIZE_8MB` for 8 MB targets like BayckRC), secure boot/enc off,
+`BOOTLOADER_LOG_LEVEL_INFO`, custom partition table (`partitions.csv`).
 
-typedef struct {
-    uint32_t magic;
-    uint32_t count;
-    uint64_t last_boot_rtc_ticks;
-} ss_state_t;
+- [x] Verified: rapid 3× → `count 1·2·3` → `otadata flip` → other slot boots same cycle.
+- [x] Verified: normal boots stay at count 1, never switch.
+- [x] Verified: IDF-v6 bootloader chainloads ELRS IDF-4.4 images.
 
-// Recompute the whole-struct CRC so our writes into rm->custom survive the next
-// warm boot (the IDF bootloader validates this CRC and resets the area if stale).
-static void ss_commit_rtc(rtc_retain_mem_t *rm) {
-    rm->crc = esp_rom_crc32_le(UINT32_MAX, (uint8_t *)rm, sizeof(*rm) - sizeof(rm->crc));
-}
-
-void bootloader_hooks_include(void) {}  // linker anchor — keep
-void bootloader_before_init(void) {}
-
-void bootloader_after_init(void) {
-    rtc_retain_mem_t *rm = bootloader_common_get_rtc_retain_mem();
-    ss_state_t *st = (ss_state_t *)rm->custom;          // CUSTOM_RESERVE_RTC area
-    uint64_t now = rtc_time_get();                       // RTC slow-clock ticks
-
-    bool valid = (st->magic == SS_MAGIC);
-    uint64_t gap = valid ? (now - st->last_boot_rtc_ticks) : 0;
-    ESP_LOGI(TAG, "valid=%d count=%u now_ticks=%llu gap_ticks=%llu",
-             valid, valid ? st->count : 0, now, gap);
-
-    if (!valid) { st->magic = SS_MAGIC; st->count = 1; }
-    else        { st->count += 1; }
-    st->last_boot_rtc_ticks = now;
-    ss_commit_rtc(rm);
-}
-```
-
-> The `ss_commit_rtc` CRC refresh is what makes retention observable: without it the IDF bootloader treats the custom area as stale on each warm boot and resets it. This task therefore also de-risks Task 6's persistence. If `valid=0` still appears on every warm boot *despite* the refresh, RTC RAM is genuinely not retained on this board (the real failure mode) — stop and report.
-
-- [ ] **Step 2: Build and flash bootloader only to BayckRC**
+### End-to-end deploy recipe (used for the LilyGo; template for real targets)
 
 ```bash
-cd ~/esp/esp-idf-v4.4 && . ./export.sh
-cd /Users/vostapiv/Drones/ExpressLRS/bootloader-slot-switch && idf.py bootloader
-python3 -m esptool --port /dev/tty.usbserial-2120 --baud 460800 --chip esp32 \
-  write-flash 0x1000 build/bootloader/bootloader.bin
-```
-Expected: "Hash of data verified."
-
-- [ ] **Step 3: Observe RAPID cycles (PASS = counter accumulates)**
-
-Open a serial monitor (`idf.py -p /dev/tty.usbserial-2120 monitor`), then power-cycle the module **3 times within ~2 s each** (toggle the radio's Internal RF off/on, or the bench supply).
-Expected (PASS): successive boots log `count=1`, `count=2`, `count=3` and `now_ticks` increases by a small amount each time. FAIL: `valid=0` on every boot (RTC RAM not retained) — if so, record it; the gesture cannot work on this board and it must use the alternate-every-boot fallback (out of scope here, but stop and report).
-
-- [ ] **Step 4: Observe NORMAL cycles (PASS = counter resets)**
-
-Power the module on, leave it running **> 10 s**, power off **> 10 s**, power on. Repeat 3×.
-Expected (PASS): each boot logs `valid=0` (full power-off drained RTC) **or** a gap `now - last` ≥ the 5 s window — i.e., `count` returns to 1 every time. FAIL: count accumulates across long-gap cycles (would cause accidental switches).
-
-- [ ] **Step 5: Record findings and commit the instrumented hook**
-
-Append a short "RTC retention bench result" note (PASS/FAIL + observed tick rate) to `docs/superpowers/specs/2026-06-10-bootloader-slot-switch-design.md` under "Verification".
-```bash
-cd /Users/vostapiv/Drones/ExpressLRS
-git add bootloader-slot-switch/bootloader_components/slot_switch/hook.c \
-        docs/superpowers/specs/2026-06-10-bootloader-slot-switch-design.md
-git commit -m "test(bootloader): bench RTC retain-memory retention across power cycles"
+# 1. Build both ELRS firmwares for the target (e.g. diy.tx_900.ttgov2), one domain:
+#    Build v4 from a branch that has the vendored-esptool relative-import fix
+#    (e.g. lua-slot/v4) or the build fails with "cannot import name 'make_image'".
+pio run -e Unified_ESP32_900_TX_via_UART          # in each of the v3 and v4 trees
+# 2. Bake hardware layout + domain into each app image:
+python3 python/binary_configurator.py .pio/build/Unified_ESP32_900_TX_via_UART/firmware.bin \
+  --target <tgt> --domain eu_433 --flash dir --out /tmp/out-vN
+# 3. Flash. Only 0x1000 differs from a stock ELRS flash — our bootloader:
+python3 -m esptool --chip esp32 -p <port> -b 115200 write-flash --flash-size <4MB|8MB> \
+  0x1000   bootloader-slot-switch/build/bootloader/bootloader.bin \
+  0x8000   <build>/partitions.bin \
+  0xe000   <build>/boot_app0.bin \
+  0x10000  /tmp/out-v3/firmware.bin \
+  0x1f0000 /tmp/out-v4/firmware.bin
+python3 -m esptool --chip esp32 -p <port> -b 115200 erase-region 0x3f0000 0x1000   # clean counter
 ```
 
----
+On UART boards flash directly; on ETX-passthrough boards, init passthrough first
+(see the build-flash-elrs skill). To upgrade only the bootloader on a board that
+already has v3/v4, write just `0x1000` — or use the web flasher's
+**Flash slot-switch bootloader** button.
 
-## Task 4: Power-cycle counter state machine
-
-Move the decision logic out of the hook into a testable, flash-free unit with explicit window/min-gap/threshold rules.
-
-**Files:**
-- Create: `bootloader-slot-switch/bootloader_components/slot_switch/slot_switch.h`
-- Create: `bootloader-slot-switch/bootloader_components/slot_switch/slot_switch_state.c`
-- Modify: `bootloader-slot-switch/bootloader_components/slot_switch/CMakeLists.txt`
-
-- [ ] **Step 1: Define the public interface and constants**
-
-`slot_switch.h`:
-```c
-#pragma once
-#include <stdint.h>
-#include <stdbool.h>
-
-#define SS_MAGIC      0x5701A700u
-#define SS_THRESHOLD  3u          // rapid cycles to trigger a switch
-// rtc_time_get() returns RTC slow-clock TICKS. Default RTC slow clock is the
-// internal ~150 kHz RC oscillator, so 1 s ≈ 150000 ticks. The RC osc drifts
-// (~±7% over temp/voltage), which is irrelevant for a coarse 5 s gesture window.
-#define SS_RTC_HZ        150000ull
-#define SS_WINDOW_TICKS  (5ull * SS_RTC_HZ)        // ≈ 5 s
-#define SS_MIN_GAP_TICKS ((3ull * SS_RTC_HZ) / 10) // ≈ 300 ms
-
-typedef struct {
-    uint32_t magic;
-    uint32_t count;
-    uint64_t last_boot_rtc_ticks;
-} ss_state_t;
-
-// Pure decision function (no flash, no RTC reads) — unit-reasoned and bench-checked.
-// Given prior state and the gap (in RTC ticks) since last boot, updates state and
-// returns whether to switch. `gap_ticks` is UINT64_MAX to denote "RTC was not
-// retained" (cold boot).
-bool ss_step(ss_state_t *st, uint64_t now_ticks, uint64_t gap_ticks);
-```
-
-- [ ] **Step 2: Implement the state machine**
-
-`slot_switch_state.c`:
-```c
-#include "slot_switch.h"
-
-bool ss_step(ss_state_t *st, uint64_t now_ticks, uint64_t gap_ticks)
-{
-    // Cold boot or corrupted RTC area: start fresh, never switch.
-    if (st->magic != SS_MAGIC || gap_ticks == UINT64_MAX) {
-        st->magic = SS_MAGIC;
-        st->count = 1;
-        st->last_boot_rtc_ticks = now_ticks;
-        return false;
-    }
-    // Chatter guard: too-fast bounce does not count.
-    if (gap_ticks < SS_MIN_GAP_TICKS) {
-        st->last_boot_rtc_ticks = now_ticks;
-        return false;
-    }
-    // Outside the rapid window: explicit clear point.
-    if (gap_ticks >= SS_WINDOW_TICKS) {
-        st->count = 1;
-        st->last_boot_rtc_ticks = now_ticks;
-        return false;
-    }
-    // Genuine rapid cycle.
-    st->count += 1;
-    st->last_boot_rtc_ticks = now_ticks;
-    if (st->count >= SS_THRESHOLD) {
-        st->count = 0;     // consume the gesture; avoid bounce-back
-        return true;       // caller performs the flip
-    }
-    return false;
-}
-```
-
-- [ ] **Step 3: Add the source to the component build**
-
-`CMakeLists.txt`:
-```cmake
-idf_component_register(SRCS "hook.c" "slot_switch_state.c"
-                       INCLUDE_DIRS "."
-                       REQUIRES bootloader_support)
-```
-
-- [ ] **Step 4: Bench-verify the transitions on hardware**
-
-Swap the inline increment in `hook.c` for a call to the new `ss_step` (keep the `ss_commit_rtc` refresh and the existing includes; add `#include "slot_switch.h"`). Replace the body of `bootloader_after_init()` with:
-```c
-    rtc_retain_mem_t *rm = bootloader_common_get_rtc_retain_mem();
-    ss_state_t *st = (ss_state_t *)rm->custom;
-    uint64_t now = rtc_time_get();
-    bool retained = (st->magic == SS_MAGIC);
-    uint64_t gap = retained ? (now - st->last_boot_rtc_ticks) : UINT64_MAX;
-    bool sw = ss_step(st, now, gap);
-    ss_commit_rtc(rm);
-    ESP_LOGI(TAG, "count=%u gap_ticks=%llu switch=%d", st->count, retained ? gap : 0, sw);
-```
-(The local `ss_state_t`/`SS_MAGIC` definitions in `hook.c` are now superseded by `slot_switch.h`; delete the duplicates from `hook.c` so only the header defines them.) Build, flash bootloader, and on BayckRC: 3 rapid cycles (<5 s each) → the third boot logs `switch=1`; a >5 s gap logs `count=1 switch=0`.
-Expected (PASS): transitions as described. FAIL: switch fires on slow cycles, or never fires on 3 rapid cycles.
-Build, flash bootloader, and confirm on BayckRC: 3 rapid cycles → third boot logs `switch=1`; a >5 s gap resets `count=1`, `switch=0`.
-Expected: PASS as described. FAIL: switch fires on slow cycles or never fires on 3 rapid.
-
-- [ ] **Step 5: Commit**
-
-```bash
-cd /Users/vostapiv/Drones/ExpressLRS
-git add bootloader-slot-switch/bootloader_components/slot_switch/slot_switch.h \
-        bootloader-slot-switch/bootloader_components/slot_switch/slot_switch_state.c \
-        bootloader-slot-switch/bootloader_components/slot_switch/CMakeLists.txt \
-        bootloader-slot-switch/bootloader_components/slot_switch/hook.c
-git commit -m "feat(bootloader): rapid power-cycle counter state machine (window/min-gap/threshold)"
-```
-
----
-
-## Task 5: otadata read + flip
-
-**Files:**
-- Create: `bootloader-slot-switch/bootloader_components/slot_switch/slot_switch_otadata.c`
-- Modify: `bootloader-slot-switch/bootloader_components/slot_switch/slot_switch.h`
-- Modify: `bootloader-slot-switch/bootloader_components/slot_switch/CMakeLists.txt`
-
-- [ ] **Step 1: Declare the otadata API**
-
-Append to `slot_switch.h`:
-```c
-#define SS_OTADATA_OFFSET   0xE000u
-#define SS_OTADATA_SECTOR   0x1000u   // each of the two select entries lives in its own 4K sector
-#define SS_NUM_OTA_PARTS    2u
-
-// Reads both otadata entries, flips the active selection to the other OTA slot,
-// and writes it back. Returns the new active slot (0 or 1), or -1 on error.
-int ss_flip_otadata(void);
-```
-
-- [ ] **Step 2: Implement read + CRC + flip**
-
-`slot_switch_otadata.c`:
-```c
-#include "slot_switch.h"
-#include "bootloader_common.h"
-#include "bootloader_flash_priv.h"
-#include "esp_flash_partitions.h"   // esp_ota_select_entry_t
-#include "esp_log.h"
-#include <string.h>
-
-static const char *TAG = "slot_switch";
-
-int ss_flip_otadata(void)
-{
-    esp_ota_select_entry_t two[2] = {0};
-    if (bootloader_flash_read(SS_OTADATA_OFFSET, &two[0], sizeof(two[0]), true) != ESP_OK) return -1;
-    if (bootloader_flash_read(SS_OTADATA_OFFSET + SS_OTADATA_SECTOR, &two[1], sizeof(two[1]), true) != ESP_OK) return -1;
-
-    // Highest valid ota_seq is the active entry.
-    uint32_t seq[2] = {0, 0};
-    for (int i = 0; i < 2; i++) {
-        if (bootloader_common_ota_select_valid(&two[i])) seq[i] = two[i].ota_seq;
-    }
-    uint32_t max_seq = seq[0] > seq[1] ? seq[0] : seq[1];
-    uint32_t cur_slot = (max_seq == 0) ? 0 : ((max_seq - 1) % SS_NUM_OTA_PARTS);
-    uint32_t new_slot = (cur_slot + 1) % SS_NUM_OTA_PARTS;
-
-    // Pick a new ota_seq that (a) is greater than both and (b) selects new_slot.
-    uint32_t new_seq = max_seq + 1;
-    if (((new_seq - 1) % SS_NUM_OTA_PARTS) != new_slot) new_seq += 1;
-
-    // Write into the entry sector that is NOT currently active (wear alternation).
-    uint32_t target_sector = (seq[0] >= seq[1]) ? 1 : 0;
-    uint32_t target_off = SS_OTADATA_OFFSET + target_sector * SS_OTADATA_SECTOR;
-
-    esp_ota_select_entry_t e = {0};
-    e.ota_seq = new_seq;
-    memset(e.seq_label, 0xFF, sizeof(e.seq_label));
-    e.crc = bootloader_common_ota_select_crc(&e);
-
-    if (bootloader_flash_erase_sector(target_off / SS_OTADATA_SECTOR) != ESP_OK) return -1;
-    if (bootloader_flash_write(target_off, &e, sizeof(e), false) != ESP_OK) return -1;
-
-    ESP_LOGI(TAG, "otadata flip: slot %u -> %u (seq %u -> %u)", cur_slot, new_slot, max_seq, new_seq);
-    return (int)new_slot;
-}
-```
-
-- [ ] **Step 3: Add to the component build**
-
-`CMakeLists.txt`:
-```cmake
-idf_component_register(SRCS "hook.c" "slot_switch_state.c" "slot_switch_otadata.c"
-                       INCLUDE_DIRS "."
-                       REQUIRES bootloader_support spi_flash)
-```
-
-- [ ] **Step 4: Bench-verify the flip in isolation**
-
-Temporarily call `ss_flip_otadata()` unconditionally once at the end of the hook, build, flash bootloader to a **dual-OTA** BayckRC that has different firmware in each slot, and confirm each boot logs `otadata flip: slot X -> Y` and the *other* firmware runs (check ELRS version via Lua/telemetry). Then remove the unconditional call.
-Expected: PASS — firmware alternates each boot. FAIL: same firmware every boot, or boot fails (bad otadata/CRC).
-
-- [ ] **Step 5: Commit**
-
-```bash
-cd /Users/vostapiv/Drones/ExpressLRS
-git add bootloader-slot-switch/bootloader_components/slot_switch/slot_switch_otadata.c \
-        bootloader-slot-switch/bootloader_components/slot_switch/slot_switch.h \
-        bootloader-slot-switch/bootloader_components/slot_switch/CMakeLists.txt
-git commit -m "feat(bootloader): read+flip otadata to select the other OTA slot"
-```
-
----
-
-## Task 6: Wire counter → flip, with CRC-correct RTC persistence
-
-**Files:**
-- Modify: `bootloader-slot-switch/bootloader_components/slot_switch/hook.c`
-
-- [ ] **Step 1: Final hook implementation**
-
-Replace `hook.c` (no `bootloader_hooks.h` include; keep the anchor symbol):
-```c
-#include "bootloader_common.h"
-#include "esp_image_format.h"   // rtc_retain_mem_t
-#include "soc/rtc.h"            // rtc_time_get
-#include "esp_rom_crc.h"        // esp_rom_crc32_le (for rtc_retain_mem CRC)
-#include "esp_log.h"
-#include <string.h>
-#include "slot_switch.h"
-
-static const char *TAG = "slot_switch";
-
-// Recompute and store the rtc_retain_mem CRC so our custom-area writes survive the next warm boot.
-static void ss_commit_rtc(rtc_retain_mem_t *rm) {
-    rm->crc = esp_rom_crc32_le(UINT32_MAX, (uint8_t *)rm, sizeof(*rm) - sizeof(rm->crc));
-}
-
-void bootloader_hooks_include(void) {}  // linker anchor — keep
-void bootloader_before_init(void) {}
-
-void bootloader_after_init(void) {
-    rtc_retain_mem_t *rm = bootloader_common_get_rtc_retain_mem();
-    ss_state_t *st = (ss_state_t *)rm->custom;
-
-    uint64_t now = rtc_time_get();
-    bool retained = (st->magic == SS_MAGIC);
-    uint64_t gap = retained ? (now - st->last_boot_rtc_ticks) : UINT64_MAX;
-
-    bool do_switch = ss_step(st, now, gap);
-    ss_commit_rtc(rm);
-
-    ESP_LOGI(TAG, "count=%u gap_ticks=%llu switch=%d", st->count, retained ? gap : 0, do_switch);
-    if (do_switch) {
-        int slot = ss_flip_otadata();
-        ESP_LOGI(TAG, "switched to slot %d", slot);
-    }
-}
-```
-
-- [ ] **Step 2: Build**
-
-```bash
-cd ~/esp/esp-idf-v4.4 && . ./export.sh
-cd /Users/vostapiv/Drones/ExpressLRS/bootloader-slot-switch && idf.py bootloader
-ls build/bootloader/bootloader.bin
-```
-Expected: bootloader.bin built.
-
-- [ ] **Step 3: Verify warm-boot persistence (CRC correctness)**
-
-Flash bootloader to BayckRC, monitor, do **2** rapid cycles, then read the log on the 3rd boot.
-Expected (PASS): boots show `count=1`, `count=2`, `count=3 … switch=1` — i.e., the custom area persisted across warm boots (proves `ss_commit_rtc` works). FAIL: every boot logs `count=1` (CRC invalid → area treated as cold each time).
-
-- [ ] **Step 4: Commit**
-
-```bash
-cd /Users/vostapiv/Drones/ExpressLRS
-git add bootloader-slot-switch/bootloader_components/slot_switch/hook.c
-git commit -m "feat(bootloader): wire rapid-cycle counter to otadata flip with CRC-persisted RTC state"
-```
-
----
-
+> The original RTC-based Tasks 3–6 (state machine, RTC retain memory, CRC
+> persistence) are removed: that approach was bench-disproven. History is in git
+> and in the spec's RTC finding.
 ## Task 7: Release build + full on-device verification (BayckRC)
 
 **Files:**
@@ -618,7 +331,7 @@ CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
 ```
 and remove `CONFIG_BOOTLOADER_LOG_LEVEL_INFO=y`. Rebuild:
 ```bash
-cd /Users/vostapiv/Drones/ExpressLRS/bootloader-slot-switch
+cd bootloader-slot-switch
 rm -f sdkconfig && idf.py bootloader
 ```
 Expected: builds; boot log is now quiet.
@@ -664,7 +377,7 @@ Expected (PASS): device boots the otadata-selected slot; 3 rapid cycles no longe
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/vostapiv/Drones/ExpressLRS
+cd <repo-root>
 git add bootloader-slot-switch/tools/flash-bootloader.sh bootloader-slot-switch/sdkconfig.defaults
 git commit -m "feat(bootloader): release (quiet) build + flash helper; verified switch/negative/recovery on BayckRC"
 ```
@@ -678,7 +391,7 @@ git commit -m "feat(bootloader): release (quiet) build + flash helper; verified 
 - [ ] **Step 1: Flash custom bootloader to TX15 via ETX passthrough (only 0x1000)**
 
 ```bash
-cd /Users/vostapiv/Drones/ExpressLRS/src
+cd src
 python3 -c "
 import sys; sys.path.insert(0,'python')
 import ETXinitPassthrough, esptool
@@ -704,7 +417,7 @@ Expected (PASS): clean restore and re-enable.
 
 Append a one-line "TX15 verified" note to `docs/superpowers/specs/2026-06-10-bootloader-slot-switch-design.md` Verification section.
 ```bash
-cd /Users/vostapiv/Drones/ExpressLRS
+cd <repo-root>
 git add docs/superpowers/specs/2026-06-10-bootloader-slot-switch-design.md
 git commit -m "test(bootloader): verify rapid-cycle slot switch on RadioMaster TX15"
 ```
@@ -728,7 +441,7 @@ Append to `src/.claude/skills/build-flash-elrs/SKILL.md` a "Switching slots with
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/vostapiv/Drones/ExpressLRS
+cd <repo-root>
 git add bootloader-slot-switch/README.md src/.claude/skills/build-flash-elrs/SKILL.md
 git commit -m "docs(bootloader): README + build-flash skill section for no-PC slot switching"
 ```
