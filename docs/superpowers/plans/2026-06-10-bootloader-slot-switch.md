@@ -55,6 +55,16 @@ bootloader-slot-switch/                 # standalone ESP-IDF project (NOT built 
 - Create: `bootloader-slot-switch/bootloader_components/slot_switch/CMakeLists.txt`
 - Create: `bootloader-slot-switch/bootloader_components/slot_switch/hook.c`
 
+> **Bring-up executed 2026-06-10 — PASS.** Done on a **LilyGo v2 TX
+> (ESP32-PICO-D4, 4 MB)**, port `/dev/tty.usbserial-595D0219001`, using an
+> already-installed **ESP-IDF v6.0-dev** (not v4.4 — v6 is fine for bring-up and
+> avoids a cmake-4.x/v4.4 clash; the v4.4 pin matters only when chainloading the
+> stock arduino-esp32 ELRS images in Tasks 5+). `bootloader_hooks.h` in v6 lives
+> at `components/bootloader/subproject/main/` and must NOT be included (see Step
+> 4). The USB-serial adapter is flaky above ~115200 — **flash at `-b 115200`**
+> (460800 failed at `flash_id`). Boot log confirmed `slot_switch hook alive` then
+> `PLACEHOLDER_APP_RUNNING`.
+
 - [ ] **Step 1: Install ESP-IDF v4.4.x**
 
 ```bash
@@ -112,18 +122,26 @@ CONFIG_PARTITION_TABLE_CUSTOM=y
 
 `bootloader-slot-switch/bootloader_components/slot_switch/CMakeLists.txt`:
 ```cmake
-idf_component_register(SRCS "hook.c"
-                       INCLUDE_DIRS "."
-                       REQUIRES bootloader_support)
+idf_component_register(SRCS "hook.c")
 ```
+> Do NOT add `REQUIRES bootloader_support` or `INCLUDE_DIRS` here for the Task 1
+> stub — the official IDF hook example registers only the source. (Later tasks
+> that call `bootloader_common_*`/`bootloader_flash_*` add `PRIV_REQUIRES` as
+> needed; validate against the IDF version in use.)
 
 `bootloader-slot-switch/bootloader_components/slot_switch/hook.c` (Task 1 stub — just proves the hook links and runs):
 ```c
-#include "bootloader_hooks.h"
 #include "esp_log.h"
 
 static const char *TAG = "slot_switch";
 
+// Anchor symbol forces the linker to keep this (otherwise-weak) hook object in
+// the bootloader image — REQUIRED by the bootloader_components mechanism.
+void bootloader_hooks_include(void) {}
+
+// Do NOT #include "bootloader_hooks.h" — it lives in the bootloader subproject's
+// private main/ dir and is not on the component include path. The hooks are weak
+// symbols; defining them here with the exact signature overrides the defaults.
 void bootloader_before_init(void) {}
 
 void bootloader_after_init(void) {
@@ -224,9 +242,9 @@ This validates the spec's one empirical risk before building real logic: does RT
 
 - [ ] **Step 1: Instrument the hook to log reboot counter + RTC time**
 
-Replace `hook.c` body:
+Replace `hook.c` body (note: no `bootloader_hooks.h` include; keep the
+`bootloader_hooks_include` anchor symbol so the linker retains the hooks):
 ```c
-#include "bootloader_hooks.h"
 #include "bootloader_common.h"
 #include "esp_image_format.h"   // rtc_retain_mem_t
 #include "soc/rtc.h"            // rtc_time_get
@@ -251,6 +269,7 @@ static void ss_commit_rtc(rtc_retain_mem_t *rm) {
     rm->crc = esp_rom_crc32_le(UINT32_MAX, (uint8_t *)rm, sizeof(*rm) - sizeof(rm->crc));
 }
 
+void bootloader_hooks_include(void) {}  // linker anchor — keep
 void bootloader_before_init(void) {}
 
 void bootloader_after_init(void) {
@@ -522,9 +541,8 @@ git commit -m "feat(bootloader): read+flip otadata to select the other OTA slot"
 
 - [ ] **Step 1: Final hook implementation**
 
-Replace `hook.c`:
+Replace `hook.c` (no `bootloader_hooks.h` include; keep the anchor symbol):
 ```c
-#include "bootloader_hooks.h"
 #include "bootloader_common.h"
 #include "esp_image_format.h"   // rtc_retain_mem_t
 #include "soc/rtc.h"            // rtc_time_get
@@ -540,6 +558,7 @@ static void ss_commit_rtc(rtc_retain_mem_t *rm) {
     rm->crc = esp_rom_crc32_le(UINT32_MAX, (uint8_t *)rm, sizeof(*rm) - sizeof(rm->crc));
 }
 
+void bootloader_hooks_include(void) {}  // linker anchor — keep
 void bootloader_before_init(void) {}
 
 void bootloader_after_init(void) {
