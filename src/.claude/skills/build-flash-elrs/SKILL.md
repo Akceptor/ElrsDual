@@ -8,8 +8,8 @@ description: Use when building and flashing ExpressLRS firmware to a TX device (
 ## Overview
 
 This repo maintains two firmware trees:
-- **v4** (`lua-slot/v4` branch, working dir: `/Users/vostapiv/Drones/ExpressLRS/src`)
-- **v3.6.3** (`lua-slot/v3.6.3` branch, worktree: `/Users/vostapiv/Drones/elrs-v3/src`)
+- **v4** (`lua-slot/v4` branch, working dir: `src`)
+- **v3.6.3** (`lua-slot/v3.6.3` branch, worktree: `../elrs-v3/src`)
 
 Both are flashed to the same device: v4 → OTA_0 (0x10000), v3.6.3 → OTA_1 (0x1F0000).
 
@@ -76,7 +76,7 @@ sed -i '' 's/#-DRegulatory_Domain_EU_868/-DRegulatory_Domain_EU_868/' user_defin
 pio run -e Unified_ESP32_LR1121_TX_via_UART
 
 # Build v3 (separate worktree, EU_868 already enabled there)
-pio run -e Unified_ESP32_LR1121_TX_via_UART -d /Users/vostapiv/Drones/elrs-v3/src
+pio run -e Unified_ESP32_LR1121_TX_via_UART -d ../elrs-v3/src
 
 # Restore
 sed -i '' 's/-DRegulatory_Domain_EU_868/#-DRegulatory_Domain_EU_868/' user_defines.txt
@@ -84,7 +84,7 @@ sed -i '' 's/-DRegulatory_Domain_EU_868/#-DRegulatory_Domain_EU_868/' user_defin
 
 Built binaries land at:
 - v4: `.pio/build/Unified_ESP32_LR1121_TX_via_UART/firmware.bin`
-- v3: `/Users/vostapiv/Drones/elrs-v3/src/.pio/build/Unified_ESP32_LR1121_TX_via_UART/firmware.bin`
+- v3: `../elrs-v3/src/.pio/build/Unified_ESP32_LR1121_TX_via_UART/firmware.bin`
 
 ---
 
@@ -103,7 +103,7 @@ python3 python/binary_configurator.py \
   --flash dir --out /tmp/out-v4
 
 python3 python/binary_configurator.py \
-  /Users/vostapiv/Drones/elrs-v3/src/.pio/build/Unified_ESP32_LR1121_TX_via_UART/firmware.bin \
+  ../elrs-v3/src/.pio/build/Unified_ESP32_LR1121_TX_via_UART/firmware.bin \
   --target radiomaster.tx_dual.tx15 \
   --domain eu_868 \
   --phrase "YourBindPhrase" \
