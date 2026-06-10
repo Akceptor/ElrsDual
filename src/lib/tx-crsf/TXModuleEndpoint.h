@@ -54,6 +54,9 @@ private:
     uint8_t luaWarningFlags = 0b00000000; //8 flag, 1 bit for each flag. set the bit to 1 to show specific warning. 3 MSB is for critical flag
 
     void handleWifiBle(propertiesCommon *item, uint8_t arg);
+#if defined(PLATFORM_ESP32)
+    void handleFirmwareSlot(propertiesCommon *item, uint8_t arg);
+#endif
     void handleSimpleSendCmd(propertiesCommon *item, uint8_t arg);
     void updateTlmBandwidth();
     void updateBackpackOpts();
