@@ -72,9 +72,11 @@ static struct luaItem_selection luaTlmRate = {
 };
 
 #if defined(PLATFORM_ESP32)
-static struct luaItem_command luaFirmwareSlot = {
-    {"Switch FW Slot", CRSF_COMMAND},
-    lcsIdle, // step
+static constexpr char luastrFwSlots[] = "Slot 0;Slot 1";
+static struct luaItem_selection luaFirmwareSlot = {
+    {"FW Slot", CRSF_TEXT_SELECTION},
+    0,
+    luastrFwSlots,
     STR_EMPTYSPACE
 };
 #endif
@@ -329,7 +331,8 @@ extern bool VRxBackpackWiFiReadyToSend;
 extern unsigned long rebootTime;
 extern void setWifiUpdateMode();
 #if defined(PLATFORM_ESP32)
-extern void setSwitchFirmwareSlot();
+extern uint8_t getFirmwareSlot();
+extern void setFirmwareSlot(uint8_t slot);
 #endif
 #endif
 
@@ -463,25 +466,6 @@ static void luahandWifiBle(struct luaPropertiesCommon *item, uint8_t arg)
   }
 }
 
-static void luahandFirmwareSlot(struct luaPropertiesCommon *item, uint8_t arg)
-{
-  struct luaItem_command *cmd = (struct luaItem_command *)item;
-  switch ((luaCmdStep_e)arg)
-  {
-    case lcsClick:
-      sendLuaCommandResponse(cmd, lcsExecuting, "Switching...");
-      setSwitchFirmwareSlot();
-      break;
-
-    case lcsCancel:
-      sendLuaCommandResponse(cmd, lcsIdle, STR_EMPTYSPACE);
-      break;
-
-    default:
-      sendLuaCommandResponse(cmd, cmd->step, cmd->info);
-      break;
-  }
-}
 #endif
 
 static void luahandSimpleSendCmd(struct luaPropertiesCommon *item, uint8_t arg)
@@ -709,7 +693,10 @@ static void registerLuaParameters()
       }
     });
     #if defined(PLATFORM_ESP32)
-    registerLUAParameter(&luaFirmwareSlot, luahandFirmwareSlot);
+    luaFirmwareSlot.value = getFirmwareSlot();
+    registerLUAParameter(&luaFirmwareSlot, [](struct luaPropertiesCommon *item, uint8_t arg) {
+      if (arg != getFirmwareSlot()) setFirmwareSlot(arg);
+    });
     #endif
     #if defined(TARGET_TX_FM30)
     registerLUAParameter(&luaBluetoothTelem, [](struct luaPropertiesCommon *item, uint8_t arg) {
