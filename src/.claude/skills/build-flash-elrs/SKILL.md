@@ -181,6 +181,57 @@ If ETX passthrough times out, EdgeTX hasn't finished booting yet — wait 5s and
 
 ---
 
+## Web UI artifacts (v4 only — CI gate)
+
+The v4 WebUI is a Lit/Vite SPA. The compiled output is committed as gzipped
+C byte-array headers under `src/html/headers/*.h`. CI (`build-and-validate-artifacts`
+in `.github/workflows/build.yml`) rebuilds them and fails the PR if the committed
+headers don't match freshly built ones:
+
+```bash
+cd src/html
+cp -r headers out      # snapshot committed headers
+npm run build:all      # regenerate all 10 headers
+diff -qr out headers   # must be identical
+```
+
+**If you change any WebUI source (e.g. `src/html/src/pages/tx-options-panel.js`),
+you MUST rebuild and commit the headers.** Shared UI code compiles into *every*
+matching header, not just one:
+
+| Source change scope | Headers that must be rebuilt |
+|---------------------|------------------------------|
+| TX-only panel (e.g. `tx-options-panel.js`) | `web-{lr1121,sx128x,sx127x}-tx.h` **and** `*-tx-8285.h` (5 files) |
+| RX-only panel | the matching `*-rx*.h` files |
+| Shared component | potentially all 10 headers |
+
+A common mistake is rebuilding only `web-lr1121-tx.h` and forgetting the
+sx127x/sx128x TX variants — CI will catch the stale ones.
+
+### Rebuilding to match CI exactly
+
+CI uses **Node 20**. Vite/rollup output can differ between Node majors, producing
+spurious diffs that fail CI. If your local Node differs, build in a container:
+
+```bash
+cd src   # repo root containing html/
+docker run --rm -v "$PWD/html:/work" -w /work node:20 bash -c \
+  "npm ci && npm run build:all"
+git status --short html/headers/   # shows which headers actually changed
+rm -rf html/out                    # out/ is a CI snapshot, never committed
+git add html/headers/web-*.h
+```
+
+Then commit only the changed `headers/*.h` files. RX headers won't change for a
+TX-only edit — if they do, your Node version is producing non-deterministic output
+and you should rely on the `node:20` container result.
+
+v3.6.3 uses the older multi-file HTML web UI compiled at PlatformIO build time —
+there are no pre-committed header artifacts and no CI artifact gate, so this section
+does not apply to the v3 branch.
+
+---
+
 ## Partition layout (both devices)
 
 ```
