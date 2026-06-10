@@ -8,3 +8,6 @@ CONFIG_SECURE_BOOT=n
 CONFIG_SECURE_FLASH_ENC_ENABLED=n
 # Show the second-stage bootloader log so the hook's ESP_LOGI is visible.
 CONFIG_BOOTLOADER_LOG_LEVEL_INFO=y
+# Custom partition table adds a dedicated `slotctr` sector for the power-cycle counter.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"

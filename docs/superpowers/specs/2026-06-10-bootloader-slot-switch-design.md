@@ -52,41 +52,59 @@ This is the core correctness requirement: a user who powers the radio on, flies,
 and powers off three times across a session must **never** trigger a switch. Only
 three deliberate quick off/on cycles should.
 
-The discriminator is the **RTC slow clock**, which advances only while the RTC
-power domain is energised. State is held in RTC-retained memory:
+### RTC-retained memory does NOT work (bench finding, 2026-06-10)
 
-```c
-struct slot_switch_state {
-    uint32_t magic;            // validity sentinel for RTC RAM
-    uint32_t count;            // consecutive rapid power-ons
-    uint64_t last_boot_rtc_us; // RTC timestamp of previous boot
-};
-```
+The original design used an RTC-retained counter + RTC slow clock to measure the
+gap between boots. **Bench-tested on the LilyGo v2 (ESP32-PICO-D4) and rejected.**
+On every reset the RTC timer (`rtc_time_get()`) read a constant ~14 000 ticks and
+our magic sentinel was always absent (`valid=0`), i.e. the RTC domain is zeroed.
+The reset reason is `rst:0x1 (POWERON_RESET)` — the same class a real power cycle
+produces. ESP32 RTC retention is a **deep-sleep** feature; it does **not** survive
+a power-off / POWERON_RESET. (ELRS's own "3 cycles → bind" uses a **flash**
+counter, `RxConfig.powerOnCounter`, for exactly this reason.) There is also no
+persistent clock across power-off, so gap-based discrimination is impossible at
+the bootloader level.
 
-Counter rules, evaluated in the bootloader on every boot:
+### Adopted mechanism: flash counter + bootloader settle-window
 
-1. **Cold boot** — `magic` invalid (RTC RAM drained by a real/long power-off):
-   `count = 1`, stamp time, boot normally. *(Normal "off, use later" always
-   starts fresh.)*
-2. **Warm boot, `now − last_boot ≥ WINDOW` (5 s)** — **the explicit clear point**:
-   `count = 1`, re-stamp, boot normally. *(If the app ran for more than 5 s, or
-   the device was off long enough to drain the RTC domain, the gap is ≥ 5 s and
-   the counter resets.)*
-3. **Warm boot, `MIN_GAP ≤ (now − last_boot) < WINDOW`** — a genuine rapid cycle:
-   `count++`, re-stamp.
-4. **`count == 3`** — perform the slot flip (see below), then `count = 0` so a 4th
-   quick cycle does not bounce straight back. Boot the now-selected slot.
-5. **Optional hardening — `now − last_boot < MIN_GAP` (~300 ms)** — ignored (no
-   increment): rejects brownout / supply-rail chatter that could otherwise reach
-   3 involuntarily.
+The bootloader provides the "timer" itself, removing the need for RTC or any app
+cooperation. State is a single `uint32_t` count in a dedicated flash sector
+(erased = 0). On every boot:
 
-Why this is safe: rapid toggling keeps the RTC domain alive so the count
-accumulates; any real power-off drains it and resets to 1; any session longer
-than 5 s resets via the window check. The **worst-case failure is "did not
-switch," never "switched by accident."**
+1. Read `n`; compute `n+1`.
+2. If `n+1 >= THRESHOLD (3)` → flip the slot (see below), reset counter to 0, boot
+   the now-selected slot.
+3. Otherwise → write `n+1`, **busy-wait `SETTLE_MS` (~2 s)**, then reset the
+   counter to 0 and boot normally.
 
-Constants `WINDOW = 5 s`, `THRESHOLD = 3`, `MIN_GAP ≈ 300 ms` are bootloader
-build-time `#define`s.
+Why this discriminates rapid from normal:
+- **Rapid cycle:** the user powers off *during* the ~2 s settle window, before the
+  reset-to-0 runs, so the incremented value persists. Three quick cycles reach 3
+  → switch.
+- **Normal boot:** the device runs past the settle window, the counter is cleared
+  to 0, so it never accumulates across normal power-ons — no matter how many.
+
+Properties:
+- No RTC, no app cooperation, no partition-table changes to the app images.
+- **Worst-case failure is "did not switch," never "switched by accident"** (a
+  normal boot always clears; only a deliberate sub-2 s off/on chain accumulates).
+- **Cost:** ~2 s added to every normal boot (the settle wait) before the app runs.
+- Constants `THRESHOLD = 3`, `SETTLE_MS ≈ 2000` are bootloader build-time `#define`s.
+
+### Counter storage (no app-image change)
+
+The counter needs a flash location that survives power-off and does not collide
+with the apps or require moving them:
+- **Bring-up (LilyGo):** a dedicated `slotctr` data partition (1 sector) added to
+  the project's own partition table.
+- **Real targets (min_spiffs):** reuse the first sector of the `coredump`
+  partition (present, fixed offset, normally unused on a TX). Re-flashing only the
+  partition table at 0x8000 to add a `slotctr` partition is an alternative; either
+  way the app images at `ota_0`/`ota_1` are untouched.
+
+Flash wear: up to two erase/writes of one sector per normal boot. At realistic TX
+boot rates this is years within the ~100k-cycle endurance; round-robining across
+multiple sectors (otadata-style) is an available mitigation if needed.
 
 ## Component 1 — Custom bootloader
 

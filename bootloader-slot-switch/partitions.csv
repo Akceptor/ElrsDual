@@ -1,0 +1,7 @@
+# Bring-up partition table for the slot-switch bootloader.
+# `slotctr` holds the power-cycle counter (1 sector, survives power-off).
+# Name,     Type, SubType,  Offset,    Size
+nvs,        data, nvs,      0x9000,    0x6000
+phy_init,   data, phy,      0xf000,    0x1000
+factory,    app,  factory,  0x10000,   0xF0000
+slotctr,    data, 0x40,     0x100000,  0x1000
