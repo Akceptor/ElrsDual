@@ -1,7 +1,10 @@
-# Bring-up partition table for the slot-switch bootloader.
-# `slotctr` holds the power-cycle counter (1 sector, survives power-off).
+# Dual-OTA bring-up table — offsets mirror the real min_spiffs layout
+# (otadata 0xe000, ota_0 0x10000, ota_1 0x1f0000) so the flip code matches the
+# real targets. `slotctr` holds the power-cycle counter (= coredump's slot in
+# min_spiffs, normally unused on a TX).
 # Name,     Type, SubType,  Offset,    Size
-nvs,        data, nvs,      0x9000,    0x6000
-phy_init,   data, phy,      0xf000,    0x1000
-factory,    app,  factory,  0x10000,   0xF0000
-slotctr,    data, 0x40,     0x100000,  0x1000
+nvs,        data, nvs,      0x9000,    0x5000
+otadata,    data, ota,      0xe000,    0x2000
+ota_0,      app,  ota_0,    0x10000,   0x1E0000
+ota_1,      app,  ota_1,    0x1f0000,  0x1E0000
+slotctr,    data, 0x40,     0x3f0000,  0x1000
