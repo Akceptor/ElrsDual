@@ -7,14 +7,33 @@ app1 = v4.x), and read either slot back — from the browser, no esptool install
 - Chrome or Edge (Web Serial API).
 - The board on USB.
 
-## Run
-Web Serial needs a secure context, so serve over localhost:
+## Run / stop
 
+Web Serial needs a secure context, so serve the folder over localhost.
+
+**Start (foreground)** — the simplest; the server runs until you stop it:
 ```
 cd tools/dual-ota-flasher
 python3 -m http.server 8000
 ```
-Open <http://localhost:8000> in Chrome/Edge.
+Then open <http://localhost:8000> in Chrome/Edge. **Stop** with `Ctrl+C` in that
+terminal.
+
+**Start (background)** — frees the terminal:
+```
+cd tools/dual-ota-flasher
+python3 -m http.server 8000 &        # note the PID it prints
+```
+**Stop** the background server (any of these):
+```
+kill %1                              # if still the most recent background job
+# or find and kill whatever holds port 8000:
+lsof -ti tcp:8000 | xargs kill       # macOS/Linux
+```
+
+Pick another port if 8000 is taken (e.g. `python3 -m http.server 8123`) and open
+that port instead. Serving must be over `localhost`/`127.0.0.1` (or https) — opening
+`index.html` as a `file://` URL disables Web Serial.
 
 ## Use
 1. **Connect** and pick the serial port (hold BOOT if it won't sync).
