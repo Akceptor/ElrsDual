@@ -60,7 +60,12 @@ before the app starts.
 Notes:
 - Built for **4 MB ESP32** with the standard `min_spiffs` layout (otadata `0xe000`,
   ota_0 `0x10000`, ota_1 `0x1f0000`, counter in the `coredump` sector `0x3f0000`).
-  Rebuild from `bootloader-slot-switch/` for other flash sizes.
+- **Source + rebuild:** the bootloader project is in `bootloader-slot-switch/` at the
+  repo root. Rebuild the bundled blob (e.g. for other flash sizes) with:
+  ```
+  cd bootloader-slot-switch && idf.py set-target esp32 && idf.py bootloader
+  cp build/bootloader/bootloader.bin ../tools/dual-ota-flasher/bootloader-slotswitch.bin
+  ```
 - The **Set active + reboot** button still works as a software alternative to the
   power-cycle gesture.
 - To revert to stock behavior, reflash a normal ELRS build (which restores the stock
