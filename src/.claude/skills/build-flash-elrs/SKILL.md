@@ -170,6 +170,40 @@ esptool.main(['--chip', 'esp32', '--port', '/dev/tty.usbmodemXXX', '--baud', '46
 
 If ETX passthrough times out, EdgeTX hasn't finished booting yet — wait 5s and retry.
 
+### Web flasher (browser, no esptool)
+
+`tools/dual-ota-flasher/` is a static page that flashes both OTA slots (and reads
+them back) over Web Serial — no esptool install. Chrome or Edge only.
+
+**Run / stop.** Web Serial needs a secure context, so serve the folder over localhost
+(opening `index.html` as a `file://` URL disables Web Serial):
+
+```bash
+# Foreground — runs until Ctrl+C:
+cd tools/dual-ota-flasher
+python3 -m http.server 8000
+
+# Background — frees the terminal:
+python3 -m http.server 8000 &        # note the PID it prints
+```
+Then open <http://localhost:8000> in Chrome/Edge. Stop the foreground server with
+`Ctrl+C`; stop a background one with `kill %1` or `lsof -ti tcp:8000 | xargs kill`.
+If 8000 is taken, use another port (e.g. `python3 -m http.server 8123`) and open that.
+
+**Use.**
+1. **Connect** and pick the serial port (hold BOOT if it won't sync).
+2. **Flash both slots:** pick the configured v3.x image (→ app0, `0x1F0000`) and v4.x
+   image (→ app1, `0x10000`), then **Flash both slots**. Bundled `bootloader.bin`,
+   `partitions.bin`, and `boot_app0.bin` are written automatically; the board reboots.
+3. **Flash one slot:** **Flash app0 only** / **Flash app1 only** write just that slot
+   in place — the other slot, bootloader, partition table, and active-slot (otadata)
+   are untouched. Switch which slot boots with **Set active + reboot**.
+4. **Read:** **Read app0 / app1** download a slot to `.bin`; **Show active slot**
+   reports which version currently boots.
+
+Images must already be configured (target/binding/domain) with the ELRS configurator
+or official web flasher; this tool only places `.bin`s into slots.
+
 ---
 
 ## Known devices
@@ -273,10 +307,11 @@ board (4 MB or 8 MB) — flash mode/size/freq are patched into the header at fla
 time. Different chip families (S3/C3/…) need `idf.py set-target <chip>`.
 
 ### Flash it — via the web flasher (easiest, no toolchain)
-1. `cd tools/dual-ota-flasher && python3 -m http.server 8000`, open in Chrome/Edge.
-2. **Connect**, then click **Flash slot-switch bootloader (0x1000)**. It writes the
-   bundled `bootloader-slotswitch.bin` to `0x1000` only — apps stay. (Rebuild that
-   bundled blob from `bootloader-slot-switch/` for non-4 MB boards.)
+1. Start the flasher and **Connect** — see [Web flasher](#web-flasher-browser-no-esptool)
+   under Step 5 for run/stop details.
+2. Click **Flash slot-switch bootloader (0x1000)**. It writes the bundled
+   `bootloader-slotswitch.bin` to `0x1000` only — apps stay. (Rebuild that bundled
+   blob from `bootloader-slot-switch/` for non-4 MB boards.)
 
 ### Flash it — via esptool (only 0x1000)
 ```bash
