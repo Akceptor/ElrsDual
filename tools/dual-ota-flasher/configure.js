@@ -12,3 +12,20 @@ export function generateUID(phrase) {
   for (let i = 0; i < 6; i++) bytes.push(parseInt(hex.substr(i * 2, 2), 16));
   return Uint8Array.from(bytes);
 }
+
+const DOMAIN_NUMBERS = { au_915: 0, fcc_915: 1, eu_868: 2, in_866: 3, au_433: 4, eu_433: 5, us_433: 6, us_433_wide: 7 };
+
+export function domainNumber(domain) {
+  if (!(domain in DOMAIN_NUMBERS)) throw new Error(`unknown domain ${domain}`);
+  return DOMAIN_NUMBERS[domain];
+}
+
+// discriminator: pass a fixed value in tests; omit in the browser for a random one.
+export function buildDefines({ phrase, domain, discriminator }) {
+  const flags = {};
+  if (phrase) flags["uid"] = [...generateUID(phrase)];
+  if (domain) flags["domain"] = domainNumber(domain);
+  flags["flash-discriminator"] =
+    discriminator ?? (globalThis.crypto.getRandomValues(new Uint32Array(1))[0] || 1);
+  return JSON.stringify(flags);
+}
