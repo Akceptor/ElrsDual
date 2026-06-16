@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dual-OTA Builder + Flasher — UI mockup</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#171a21; --panel2:#1d212b; --line:#2a2f3a;
+    --txt:#e6e9ef; --muted:#8b93a3; --accent:#3b82f6; --accent2:#22c55e;
+    --warn:#f59e0b; --radius:10px;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif;
+         background:var(--bg); color:var(--txt); padding:24px; }
+  .wrap { max-width:720px; margin:0 auto; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 18px; font-size:12.5px; }
+  .card { background:var(--panel); border:1px solid var(--line);
+          border-radius:var(--radius); margin-bottom:14px; overflow:hidden; }
+  .card h2 { font-size:12px; letter-spacing:.08em; text-transform:uppercase;
+             color:var(--muted); margin:0; padding:11px 16px;
+             border-bottom:1px solid var(--line); background:var(--panel2); }
+  .card .body { padding:14px 16px; }
+  .row { display:flex; gap:12px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+  .row:last-child { margin-bottom:0; }
+  label.lbl { width:92px; color:var(--muted); flex:0 0 auto; font-size:13px; }
+  input[type=text], input[type=password], select {
+    background:#0c0e12; color:var(--txt); border:1px solid var(--line);
+    border-radius:7px; padding:7px 9px; font:inherit; min-width:0; }
+  select { min-width:230px; }
+  input.grow { flex:1; min-width:160px; }
+  .hint { color:var(--muted); font-size:12px; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+  .seg button { background:#0c0e12; color:var(--txt); border:0; padding:7px 13px;
+                font:inherit; cursor:pointer; border-right:1px solid var(--line); }
+  .seg button:last-child { border-right:0; }
+  .seg button.on { background:var(--accent); color:#fff; }
+  button.btn { background:var(--accent); color:#fff; border:0; border-radius:7px;
+               padding:8px 14px; font:inherit; cursor:pointer; }
+  button.btn.ghost { background:#0c0e12; border:1px solid var(--line); color:var(--txt); }
+  button.btn.ok { background:var(--accent2); }
+  button.btn:disabled { opacity:.45; cursor:not-allowed; }
+  .btns { display:flex; gap:8px; flex-wrap:wrap; }
+  .status { color:var(--warn); font-size:13px; }
+  .staged { background:#0c0e12; border:1px dashed var(--line); border-radius:7px;
+            padding:9px 11px; font-size:12.5px; color:var(--muted); }
+  .staged b { color:var(--txt); }
+  .ok { color:var(--accent2); }
+  .src { display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; font-size:12px; }
+  .src button { background:#0c0e12; color:var(--muted); border:0; padding:4px 9px; cursor:pointer; border-right:1px solid var(--line); }
+  .src button:last-child{border-right:0;}
+  .src button.on { background:var(--panel2); color:var(--txt); }
+  .log { background:#08090c; border-top:1px solid var(--line); padding:12px 16px;
+         font:12px/1.5 ui-monospace,Menlo,monospace; color:#9fb0c3; height:120px; overflow:auto; }
+  .pill { font-size:11px; color:var(--muted); border:1px solid var(--line);
+          border-radius:999px; padding:2px 8px; }
+  .note { font-size:11.5px; color:var(--muted); margin-top:14px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Dual-OTA Builder + Flasher</h1>
+  <p class="sub">Build ELRS from the v3.6.3 / v4 branch in GitHub Actions, configure it in your browser, flash it into an OTA slot. <span class="pill">UI MOCKUP — not wired up</span></p>
+
+  <!-- TOKEN -->
+  <div class="card">
+    <div class="body">
+      <div class="row">
+        <label class="lbl">GitHub token</label>
+        <input type="password" class="grow" value="ghp_xxxxxxxxxxxxxxxxxxxx" />
+        <span class="hint">stored in sessionStorage · needs <code>actions:write</code></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUILD -->
+  <div class="card">
+    <h2>Build</h2>
+    <div class="body">
+      <div class="row">
+        <label class="lbl">Version</label>
+        <span class="seg"><button>v3.6.3</button><button class="on">v4</button></span>
+        <span class="hint">→ builds branch HEAD (push local changes first)</span>
+      </div>
+      <div class="row">
+        <label class="lbl">Target</label>
+        <select>
+          <option>radiomaster.tx_dual.tx15</option>
+          <option>radiomaster.tx_dual.ranger</option>
+          <option>happymodel.rx_2400.ep1</option>
+          <option>generic.rx_900.diversity</option>
+        </select>
+        <span class="hint">ESP32 only (142) · esp8285/stm32/-s3/-c3 hidden</span>
+      </div>
+      <div class="row">
+        <label class="lbl">Domain</label>
+        <select style="min-width:130px">
+          <option>eu_868</option><option>fcc_915</option><option>au_915</option>
+          <option>in_866</option><option>eu_433</option>
+        </select>
+        <label class="lbl" style="width:auto">Bind phrase</label>
+        <input type="text" class="grow" placeholder="optional — stays local" />
+      </div>
+      <div class="row">
+        <label class="lbl">Stage into</label>
+        <span class="seg"><button>app0 (v3.x)</button><button class="on">app1 (v4.x)</button></span>
+      </div>
+      <div class="row">
+        <button class="btn">Build &amp; stage → app1</button>
+        <span class="status">building… ⏳ 2:14 · <a href="#" style="color:var(--accent)">view run</a></span>
+      </div>
+      <div class="row">
+        <div class="staged" style="flex:1">Staged · app0 = <b>(none)</b></div>
+        <div class="staged" style="flex:1">Staged · app1 = <b class="ok">v4 · tx15 · eu_868 ✓</b></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLASH -->
+  <div class="card">
+    <h2>Flash <span style="text-transform:none;letter-spacing:0;font-weight:400">(existing — unchanged)</span></h2>
+    <div class="body">
+      <div class="row">
+        <button class="btn ghost">Connect</button>
+        <span class="hint">chip: ESP32-D0WD · MAC: 24:6f:28:ab:cd:ef</span>
+      </div>
+      <div class="row">
+        <label class="lbl">app0 (v3.x)</label>
+        <span class="src"><button class="on">file…</button><button>staged</button></span>
+        <span class="hint">elrs-v3-tx15.bin</span>
+      </div>
+      <div class="row">
+        <label class="lbl">app1 (v4.x)</label>
+        <span class="src"><button>file…</button><button class="on">staged</button></span>
+        <span class="hint ok">using staged build</span>
+      </div>
+      <div class="row btns">
+        <button class="btn">Flash both</button>
+        <button class="btn ghost">Flash app0 only</button>
+        <button class="btn ghost">Flash app1 only</button>
+        <button class="btn ghost">Flash slot-switch bootloader (0x1000)</button>
+      </div>
+      <div class="row btns">
+        <button class="btn ghost">Read app0</button>
+        <button class="btn ghost">Read app1</button>
+        <button class="btn ghost">Show active slot</button>
+        <button class="btn ghost">Set active + reboot</button>
+      </div>
+    </div>
+    <div class="log">
+&gt; dispatch flasher-build.yml {branch:v4, env:Unified_ESP32_2400_TX_via_UART, run_tag:7f3a}<br>
+&gt; run #1287 queued… building… success (2m41s)<br>
+&gt; fetch flasher-artifacts/v4/Unified_ESP32_2400_TX_via_UART/firmware.bin via blob api … 1.06 MB<br>
+&gt; configure: target=radiomaster.tx_dual.tx15 domain=eu_868 uid=md5(...) … appended 4128 B<br>
+&gt; staged → app1 ✓ &nbsp; ready to flash
+    </div>
+  </div>
+
+  <p class="note">Mockup only. Open with any browser; nothing here connects to a device or GitHub.</p>
+</div>
+</body>
+</html>
