@@ -37,10 +37,15 @@ that port instead. Serving must be over `localhost`/`127.0.0.1` (or https) — o
 
 ## Use
 1. **Connect** and pick the serial port (hold BOOT if it won't sync).
-2. **Write:** choose your configured v3.x image (→ app0) and v4.x image (→ app1),
+2. **Write both:** choose your configured v3.x image (→ app0) and v4.x image (→ app1),
    then **Flash both slots**. The bundled `bootloader.bin`, `partitions.bin`, and
    `boot_app0.bin` are flashed automatically; `boot_app0.bin` makes app0 (v3.x) boot
    first. The board reboots when done.
+2b. **Write one slot:** **Flash app0 only** / **Flash app1 only** write just that slot's
+   firmware (from the matching file picker) in place. The other slot, the bootloader,
+   the partition table and the active-slot selection (otadata) are left untouched — use
+   this to update a single version without re-provisioning. Switch which slot boots with
+   **Set active + reboot** (or the slot-switch bootloader's power-cycle gesture).
 3. **Read:** **Read app0 / app1** download that slot to a `.bin`; **Show active
    slot** reports which version currently boots.
 

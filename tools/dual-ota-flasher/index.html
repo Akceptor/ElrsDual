@@ -40,6 +40,13 @@
     <div class="row">v3.x image (&rarr; app0): <input type="file" id="v3file" accept=".bin"/></div>
     <div class="row">v4.x image (&rarr; app1): <input type="file" id="v4file" accept=".bin"/></div>
     <button id="flash">Flash both slots</button>
+    <button id="flash0">Flash app0 only (v3.x)</button>
+    <button id="flash1">Flash app1 only (v4.x)</button>
+    <p style="font-size:.85rem;color:#555;margin:.25rem 0">
+      <b>Flash both slots</b> also writes the bootloader, partition table and
+      otadata (full provision). <b>Flash appN only</b> writes just that slot's
+      firmware in place — the other slot, the bootloader and the active-slot
+      selection are left untouched.</p>
 
     <h2>Read</h2>
     <button id="read0">Read app0 (v3.x)</button>

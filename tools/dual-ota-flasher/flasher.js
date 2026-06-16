@@ -18,7 +18,7 @@ const terminal = {
   write(data) { logEl.textContent += data; logEl.scrollTop = logEl.scrollHeight; },
 };
 
-const ACTION_IDS = ["connect", "flash", "read0", "read1", "active", "setslot", "flashboot"];
+const ACTION_IDS = ["connect", "flash", "flash0", "flash1", "read0", "read1", "active", "setslot", "flashboot"];
 function setBusy(busy) {
   for (const id of ACTION_IDS) {
     const el = document.getElementById(id);
@@ -67,6 +67,40 @@ async function fetchBin(name) {
 async function fileToUint8(file) {
   return new Uint8Array(await file.arrayBuffer());
 }
+
+// Flash a single OTA slot in place, leaving the bootloader, partition table,
+// the other slot, and the active-slot selection (otadata) untouched.
+async function flashSlot(file, address, slotLabel) {
+  if (!esploader) { log("Connect first."); return; }
+  if (!file) { log("Pick the " + slotLabel + " image first."); return; }
+  setBusy(true);
+  try {
+    log("Loading " + slotLabel + " image…");
+    const app = await fileToUint8(file);
+    log("Flashing " + slotLabel + " (" + app.length + " bytes @ 0x" + address.toString(16) + ")…");
+    await esploader.writeFlash({
+      fileArray: [{ data: app, address }],
+      flashMode: "keep",
+      flashFreq: "keep",
+      flashSize: "keep",
+      eraseAll: false,
+      compress: true,
+      reportProgress: (i, written, total) => { if (written === total) log("  " + slotLabel + " written"); },
+    });
+    log("Flash complete. Resetting…");
+    await esploader.after("hard_reset");
+    log("Done — " + slotLabel + " updated. Board boots the currently-active slot (use Set active to switch).");
+  } catch (e) {
+    log("Flash error: " + e.message);
+  } finally {
+    setBusy(false);
+  }
+}
+
+document.getElementById("flash0").addEventListener("click", () =>
+  flashSlot(document.getElementById("v3file").files[0], APP0_ADDR, "app0 (v3.x)"));
+document.getElementById("flash1").addEventListener("click", () =>
+  flashSlot(document.getElementById("v4file").files[0], APP1_ADDR, "app1 (v4.x)"));
 
 document.getElementById("flash").addEventListener("click", async () => {
   const f3 = document.getElementById("v3file").files[0];
