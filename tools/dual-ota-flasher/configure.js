@@ -29,3 +29,20 @@ export function buildDefines({ phrase, domain, discriminator }) {
     discriminator ?? (globalThis.crypto.getRandomValues(new Uint32Array(1))[0] || 1);
   return JSON.stringify(flags);
 }
+
+// Mirrors UnifiedConfiguration.findFirmwareEnd for the ESP32 (non-8285) path.
+export function findFirmwareEnd(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const magic = dv.getUint8(0);
+  if (magic !== 0xe9) throw new Error("not a firmware image (bad magic)");
+  const segments = dv.getUint8(1);
+  if (segments === 2) throw new Error("ESP8266/85 image not supported by this tool");
+  let pos = 24;
+  for (let i = 0; i < segments; i++) {
+    const size = dv.getUint32(pos + 4, true);
+    pos += 8 + size;
+  }
+  pos = (pos + 16) & ~15;
+  pos += 32;
+  return pos >>> 0;
+}
