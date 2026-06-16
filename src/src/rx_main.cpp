@@ -43,9 +43,11 @@
 #if defined(PLATFORM_ESP8266)
 #include <user_interface.h>
 #include <FS.h>
+#define ELRS_FS SPIFFS
 #elif defined(PLATFORM_ESP32)
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include "esp_task_wdt.h"
+#define ELRS_FS LittleFS
 #endif
 
 //
@@ -2050,9 +2052,9 @@ void resetConfigAndReboot()
     // all this flash write is taking too long
     yield();
     // Remove options.json and hardware.json
-    SPIFFS.format();
+    ELRS_FS.format();
     yield();
-    SPIFFS.begin();
+    ELRS_FS.begin();
     options_SetTrueDefaults();
 
     ESP.restart();

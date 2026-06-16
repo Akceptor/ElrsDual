@@ -8,8 +8,10 @@
 #include <ArduinoJson.h>
 #if defined(PLATFORM_ESP8266)
 #include <FS.h>
+#define ELRS_FS SPIFFS
 #else
-#include <SPIFFS.h>
+#include <LittleFS.h>
+#define ELRS_FS LittleFS
 #endif
 
 #if defined(PLATFORM_ESP32)
@@ -18,6 +20,7 @@
 #include <Update.h>
 #include <esp_partition.h>
 #include <esp_ota_ops.h>
+#include <nvs.h>
 #include <soc/uart_pins.h>
 #else
 #include <ESP8266WiFi.h>
@@ -107,6 +110,31 @@ void setWifiUpdateMode()
   InBindingMode = false;
   connectionState = wifiUpdate;
 }
+
+#if defined(PLATFORM_ESP32)
+uint8_t getFirmwareSlot()
+{
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  return (running && running->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) ? 1 : 0;
+}
+
+void setFirmwareSlot(uint8_t slot)
+{
+  esp_partition_subtype_t targetSub = (slot == 1)
+      ? ESP_PARTITION_SUBTYPE_APP_OTA_1
+      : ESP_PARTITION_SUBTYPE_APP_OTA_0;
+  const esp_partition_t *target =
+      esp_partition_find_first(ESP_PARTITION_TYPE_APP, targetSub, NULL);
+  if (target)
+    esp_ota_set_boot_partition(target);
+  rebootTime = millis() + 400;
+}
+
+void setSwitchFirmwareSlot()
+{
+  setFirmwareSlot(1 - getFirmwareSlot());
+}
+#endif
 
 /** Is this an IP? */
 static boolean isIp(String str)
@@ -207,7 +235,7 @@ static void putFile(AsyncWebServerRequest *request, uint8_t *data, size_t len, s
   static File file;
   static size_t bytes;
   if (!file || request->url() != file.name()) {
-    file = SPIFFS.open(request->url(), "w");
+    file = ELRS_FS.open(request->url(), "w");
     bytes = 0;
   }
   file.write(data, len);
@@ -224,7 +252,7 @@ static void getFile(AsyncWebServerRequest *request)
   } else if (request->url() == "/hardware.json") {
     request->send(200, "application/json", getHardware());
   } else {
-    request->send(SPIFFS, request->url().c_str(), "text/plain", true);
+    request->send(ELRS_FS, request->url().c_str(), "text/plain", true);
   }
 }
 
@@ -240,13 +268,13 @@ static void HandleReboot(AsyncWebServerRequest *request)
 static void HandleReset(AsyncWebServerRequest *request)
 {
   if (request->hasArg("hardware")) {
-    SPIFFS.remove("/hardware.json");
+    ELRS_FS.remove("/hardware.json");
   }
   if (request->hasArg("options")) {
-    SPIFFS.remove("/options.json");
+    ELRS_FS.remove("/options.json");
   }
   if (request->hasArg("lr1121")) {
-    SPIFFS.remove("/lr1121.txt");
+    ELRS_FS.remove("/lr1121.txt");
   }
   if (request->hasArg("model") || request->hasArg("config")) {
     config.SetDefaults(true);
@@ -265,7 +293,7 @@ static void UpdateSettings(AsyncWebServerRequest *request, JsonVariant &json)
     return;
   }
 
-  File file = SPIFFS.open("/options.json", "w");
+  File file = ELRS_FS.open("/options.json", "w");
   serializeJson(json, file);
   request->send(200);
 }
@@ -1056,6 +1084,65 @@ static void addCaptivePortalHandlers()
     server.on("/success.txt", [](AsyncWebServerRequest *request) { request->send(200); }); // firefox captive portal call home
 }
 
+#if defined(PLATFORM_ESP32)
+static int getRunningSlot()
+{
+    const esp_partition_t *r = esp_ota_get_running_partition();
+    return (r != nullptr && r->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) ? 1 : 0;
+}
+
+static void writeSlotVersion()
+{
+    nvs_handle_t h;
+    if (nvs_open("elrs_ota", NVS_READWRITE, &h) != ESP_OK) return;
+    nvs_set_str(h, (getRunningSlot() == 0) ? "s0ver" : "s1ver", VERSION);
+    nvs_commit(h);
+    nvs_close(h);
+}
+
+static void WebGetSlot(AsyncWebServerRequest *request)
+{
+    char s0[32] = {0}, s1[32] = {0};
+    nvs_handle_t h;
+    if (nvs_open("elrs_ota", NVS_READONLY, &h) == ESP_OK) {
+        size_t len = sizeof(s0);
+        nvs_get_str(h, "s0ver", s0, &len);
+        len = sizeof(s1);
+        nvs_get_str(h, "s1ver", s1, &len);
+        nvs_close(h);
+    }
+    char buf[128];
+    snprintf(buf, sizeof(buf), "{\"running\":%d,\"slot0\":\"%s\",\"slot1\":\"%s\"}",
+             getRunningSlot(), s0, s1);
+    request->send(200, "application/json", buf);
+}
+
+static void WebSetSlot(AsyncWebServerRequest *request, JsonVariant &json)
+{
+    int slot = json["slot"] | -1;
+    if (slot != 0 && slot != 1)
+    {
+        request->send(400, "application/json", "{\"status\":\"bad-slot\"}");
+        return;
+    }
+    if (slot == getRunningSlot())
+    {
+        request->send(200, "application/json", "{\"status\":\"current\"}");
+        return;
+    }
+    esp_partition_subtype_t sub = (slot == 1) ? ESP_PARTITION_SUBTYPE_APP_OTA_1
+                                              : ESP_PARTITION_SUBTYPE_APP_OTA_0;
+    const esp_partition_t *target = esp_partition_find_first(ESP_PARTITION_TYPE_APP, sub, NULL);
+    if (target == nullptr || esp_ota_set_boot_partition(target) != ESP_OK)
+    {
+        request->send(500, "application/json", "{\"status\":\"error\"}");
+        return;
+    }
+    request->send(200, "application/json", "{\"status\":\"rebooting\"}");
+    rebootTime = millis() + 200;
+}
+#endif
+
 static void startServices()
 {
   if (servicesStarted) {
@@ -1075,6 +1162,11 @@ static void startServices()
   server.on("/forget", WebUpdateForget);
   server.on("/connect", WebUpdateConnect);
   server.on("/config", HTTP_GET, GetConfiguration);
+#if defined(PLATFORM_ESP32)
+  writeSlotVersion();
+  server.on("/slot", HTTP_GET, WebGetSlot);
+  server.addHandler(new AsyncCallbackJsonWebHandler("/slot", WebSetSlot));
+#endif
   server.on("/access", WebUpdateAccessPoint);
   server.on("/target", WebUpdateGetTarget);
   server.on("/firmware.bin", WebUpdateGetFirmware);

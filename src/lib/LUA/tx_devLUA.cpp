@@ -71,6 +71,16 @@ static struct luaItem_selection luaTlmRate = {
     tlmBandwidth
 };
 
+#if defined(PLATFORM_ESP32)
+static constexpr char luastrFwSlots[] = "Slot 0;Slot 1";
+static struct luaItem_selection luaFirmwareSlot = {
+    {"FW Slot", CRSF_TEXT_SELECTION},
+    0,
+    luastrFwSlots,
+    STR_EMPTYSPACE
+};
+#endif
+
 //----------------------------POWER------------------
 static struct luaItem_folder luaPowerFolder = {
     {"TX Power", CRSF_FOLDER},pwrFolderDynamicName
@@ -320,6 +330,10 @@ extern bool VRxBackpackWiFiReadyToSend;
 #if defined(PLATFORM_ESP32) || defined(PLATFORM_ESP8266)
 extern unsigned long rebootTime;
 extern void setWifiUpdateMode();
+#if defined(PLATFORM_ESP32)
+extern uint8_t getFirmwareSlot();
+extern void setFirmwareSlot(uint8_t slot);
+#endif
 #endif
 
 static void luadevUpdateModelID() {
@@ -451,6 +465,7 @@ static void luahandWifiBle(struct luaPropertiesCommon *item, uint8_t arg)
       break;
   }
 }
+
 #endif
 
 static void luahandSimpleSendCmd(struct luaPropertiesCommon *item, uint8_t arg)
@@ -677,6 +692,12 @@ static void registerLuaParameters()
         }
       }
     });
+    #if defined(PLATFORM_ESP32)
+    luaFirmwareSlot.value = getFirmwareSlot();
+    registerLUAParameter(&luaFirmwareSlot, [](struct luaPropertiesCommon *item, uint8_t arg) {
+      if (arg != getFirmwareSlot()) setFirmwareSlot(arg);
+    });
+    #endif
     #if defined(TARGET_TX_FM30)
     registerLUAParameter(&luaBluetoothTelem, [](struct luaPropertiesCommon *item, uint8_t arg) {
       digitalWrite(GPIO_PIN_BLUETOOTH_EN, !arg);

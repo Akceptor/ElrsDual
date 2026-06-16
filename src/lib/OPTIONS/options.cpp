@@ -184,8 +184,10 @@ bool options_init()
 #include <StreamString.h>
 #if defined(PLATFORM_ESP8266)
 #include <FS.h>
+#define ELRS_FS SPIFFS
 #else
-#include <SPIFFS.h>
+#include <LittleFS.h>
+#define ELRS_FS LittleFS
 #endif
 #if defined(PLATFORM_ESP32)
 #include <esp_partition.h>
@@ -244,7 +246,7 @@ void saveOptions(Stream &stream, bool customised)
 
 void saveOptions()
 {
-    File options = SPIFFS.open("/options.json", "w");
+    File options = ELRS_FS.open("/options.json", "w");
     saveOptions(options, true);
     options.close();
 }
@@ -290,7 +292,7 @@ static void options_LoadFromFlashOrFile(EspFlashStream &strmFlash)
     }
 
     // load options.json from the SPIFFS partition
-    File file = SPIFFS.open("/options.json", "r");
+    File file = ELRS_FS.open("/options.json", "r");
     if (file && !file.isDirectory())
     {
         DeserializationError error = deserializeJson(spiffsDoc, file);
@@ -364,7 +366,7 @@ void options_SetTrueDefaults()
     doc["domain"] = firmwareOptions.domain;
     doc["flash-discriminator"] = firmwareOptions.flash_discriminator;
 
-    File options = SPIFFS.open("/options.json", "w");
+    File options = ELRS_FS.open("/options.json", "w");
     serializeJson(doc, options);
     options.close();
 }
@@ -407,14 +409,14 @@ bool options_init()
 
     uint32_t baseAddr = 0;
 #if defined(PLATFORM_ESP32)
-    SPIFFS.begin(true);
+    ELRS_FS.begin(true);
     const esp_partition_t *runningPart = esp_ota_get_running_partition();
     if (runningPart)
     {
         baseAddr = runningPart->address;
     }
 #else
-    SPIFFS.begin();
+    ELRS_FS.begin();
     // ESP8266 sketch baseAddr is always 0
 #endif
 
