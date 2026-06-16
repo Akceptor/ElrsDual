@@ -46,3 +46,29 @@ export function findFirmwareEnd(bytes) {
   pos += 32;
   return pos >>> 0;
 }
+
+const enc = new TextEncoder();
+
+function fixedField(str, len) {
+  const out = new Uint8Array(len); // zero-filled
+  const b = enc.encode(str);
+  out.set(b.subarray(0, len));
+  return out;
+}
+
+// Mirrors UnifiedConfiguration.appendToFirmware (first four blocks only).
+// base: Uint8Array firmware image. Returns a new Uint8Array with the config appended.
+export function appendConfig(base, { productName, luaName, defines, layout }) {
+  const end = findFirmwareEnd(base);
+  const product = fixedField(productName, 128);
+  const device = fixedField(luaName, 16);
+  const definesField = fixedField(defines, 512);
+  const layoutStr = layout == null ? "" : JSON.stringify(layout);
+  const layoutField = fixedField(layoutStr, 2048);
+
+  const out = new Uint8Array(end + product.length + device.length + definesField.length + layoutField.length);
+  out.set(base.subarray(0, Math.min(base.length, end)), 0);
+  let p = end;
+  for (const f of [product, device, definesField, layoutField]) { out.set(f, p); p += f.length; }
+  return out;
+}
