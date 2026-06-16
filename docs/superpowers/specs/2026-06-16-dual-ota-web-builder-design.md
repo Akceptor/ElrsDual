@@ -29,11 +29,25 @@ The builder is **purely additive**: every existing capability of `flasher.js` is
   CORS wall on downloading Actions *artifacts* / Release assets from a browser.
 - **Configuration:** happens **in-browser** (bind phrase never leaves the machine),
   **adapted from the official `ExpressLRS/web-flasher` JS configurator** (GPL), with
-  byte-parity tests against this repo's `binary_configurator.py`.
+  field-parity tests against this repo's `binary_configurator.py`
+  (fixed fields byte-identical; the layout JSON region compared by value, since Python
+  emits spaced JSON and JS emits compact — the device parser is whitespace-agnostic).
 - **Target visibility:** only `platform == 'esp32'`. `esp8285`/`stm32` excluded (no dual
   OTA); `esp32-s3`/`esp32-c3` excluded for now (bundled boot blobs are plain-ESP32).
+- **Hosting:** the tool stays a pure static site and must be hostable on **GitHub Pages**
+  (HTTPS satisfies Web Serial; `api.github.com` + `raw.githubusercontent.com` both send
+  `Access-Control-Allow-Origin: *`, so the token/build/fetch flow works cross-origin from
+  `*.github.io`). A Pages deploy workflow publishes `tools/dual-ota-flasher/`. Repo
+  owner/name for API calls come from `config.js` (auto-detected from `location` on
+  `*.github.io`, overridable). No secrets are baked into the site — the PAT is entered at
+  runtime and kept in `sessionStorage`.
 
 ## Architecture (3 layers)
+
+### 0. Pages deploy workflow — `.github/workflows/flasher-pages.yml`
+- Publishes `tools/dual-ota-flasher/` to GitHub Pages (`actions/upload-pages-artifact` +
+  `actions/deploy-pages`), so the tool is reachable at `https://<owner>.github.io/<repo>/`.
+  Optional to enable (Settings → Pages → GitHub Actions), but provided so the user *can*.
 
 ### 1. CI build workflow — `.github/workflows/flasher-build.yml`
 - Trigger: `workflow_dispatch` with inputs `{ branch: v3.6.3 | v4, env: <pio env>, run_tag }`.
@@ -122,15 +136,17 @@ stage" fills the staged slot; the existing Flash buttons then write file-or-stag
 ## Testing / verification
 
 - **Automated (`configure.js`):** Node test configures a known `firmware.bin` in JS and
-  diffs the bytes against `python/binary_configurator.py` output for identical inputs
-  (target, domain, phrase). Byte-parity is the pass condition.
+  compares against `UnifiedConfiguration.appendToFirmware` output for identical inputs
+  (target, domain, phrase). Pass condition: fixed fields + `defines` byte-identical, the
+  layout JSON region equal by value.
 - **Manual e2e** on the tx15 / LiLiGo board: build v4 → stage app1 → flash; build v3 →
   stage app0 → flash; verify boot, WebUI version selector, and slot switching.
 
 ## Scope / out of scope
 
-- **In:** Build section UI, `flasher-build.yml`, `github.js`, `configure.js` (with
-  byte-parity tests), ESP32-only target filtering, staging into the existing flash paths.
+- **In:** Build section UI, `flasher-pages.yml`, `flasher-build.yml`, `github.js`,
+  `configure.js` (with field-parity tests), ESP32-only target filtering, staging into the
+  existing flash paths.
 - **Out:** `esp32-s3` / `esp32-c3` / `esp8285` / `stm32`; building uncommitted local
   changes (CI builds pushed branch HEAD — push first); a no-token manual-trigger mode;
   pre-built matrix; changing the bundled bootloader/partition blobs.
