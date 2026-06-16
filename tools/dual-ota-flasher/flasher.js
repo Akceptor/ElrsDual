@@ -10,7 +10,7 @@ let transport = null;
 let esploader = null;
 
 const logEl = document.getElementById("log");
-function log(msg) { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; }
+export function log(msg) { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; }
 
 const terminal = {
   clean() { logEl.textContent = ""; },
@@ -19,7 +19,9 @@ const terminal = {
 };
 
 const ACTION_IDS = ["connect", "flash", "flash0", "flash1", "read0", "read1", "active", "setslot", "flashboot"];
-function setBusy(busy) {
+export function isConnected() { return esploader !== null; }
+export { APP0_ADDR, APP1_ADDR };
+export function setBusy(busy) {
   for (const id of ACTION_IDS) {
     const el = document.getElementById(id);
     if (el) el.disabled = busy;
@@ -68,18 +70,17 @@ async function fileToUint8(file) {
   return new Uint8Array(await file.arrayBuffer());
 }
 
-// Flash a single OTA slot in place, leaving the bootloader, partition table,
-// the other slot, and the active-slot selection (otadata) untouched.
-async function flashSlot(file, address, slotLabel) {
+// Flash raw bytes into a single OTA slot in place, leaving the bootloader, partition
+// table, the other slot, and the active-slot selection (otadata) untouched. Shared by
+// the file-picker handlers (flashSlot) and the builder's staged images (builder.js).
+export async function flashData(data, address, slotLabel) {
   if (!esploader) { log("Connect first."); return; }
-  if (!file) { log("Pick the " + slotLabel + " image first."); return; }
+  if (!data) { log("Nothing to flash for " + slotLabel + "."); return; }
   setBusy(true);
   try {
-    log("Loading " + slotLabel + " image…");
-    const app = await fileToUint8(file);
-    log("Flashing " + slotLabel + " (" + app.length + " bytes @ 0x" + address.toString(16) + ")…");
+    log("Flashing " + slotLabel + " (" + data.length + " bytes @ 0x" + address.toString(16) + ")…");
     await esploader.writeFlash({
-      fileArray: [{ data: app, address }],
+      fileArray: [{ data, address }],
       flashMode: "keep",
       flashFreq: "keep",
       flashSize: "keep",
@@ -95,6 +96,12 @@ async function flashSlot(file, address, slotLabel) {
   } finally {
     setBusy(false);
   }
+}
+
+async function flashSlot(file, address, slotLabel) {
+  if (!file) { log("Pick the " + slotLabel + " image first."); return; }
+  log("Loading " + slotLabel + " image…");
+  await flashData(await fileToUint8(file), address, slotLabel);
 }
 
 document.getElementById("flash0").addEventListener("click", () =>
