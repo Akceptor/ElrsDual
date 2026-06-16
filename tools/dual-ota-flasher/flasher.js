@@ -32,15 +32,28 @@ if (!navigator.serial) {
 }
 
 document.getElementById("connect").addEventListener("click", async () => {
+  const controls = document.getElementById("controls");
+  // Tear down any prior session first: a failed (re)connect must not leave a
+  // half-initialized loader behind still-visible controls. The action buttons
+  // guard on `esploader`, so it must be null until we have a fully usable one.
+  esploader = null;
+  transport = null;
+  controls.style.display = "none";
   try {
     const port = await navigator.serial.requestPort();
     const baud = parseInt(document.getElementById("baud").value, 10) || 460800;
-    transport = new Transport(port, true);
-    esploader = new ESPLoader({ transport, baudrate: baud, terminal, debugLogging: false });
-    const chip = await esploader.main();
+    const t = new Transport(port, true);
+    const loader = new ESPLoader({ transport: t, baudrate: baud, terminal, debugLogging: false });
+    const chip = await loader.main();
+    if (!loader.chip) throw new Error("chip not detected — hold BOOT and retry");
+    transport = t;
+    esploader = loader;
     log("Connected: " + chip);
-    document.getElementById("controls").style.display = "block";
+    controls.style.display = "block";
   } catch (e) {
+    esploader = null;
+    transport = null;
+    controls.style.display = "none";
     log("Connect failed: " + e.message + "  (hold the BOOT button and retry)");
   }
 });
