@@ -24,6 +24,45 @@
      Web Serial is not available in this browser. Use Chrome or Edge over
      http://localhost or https.</p>
 
+  <section id="build-section">
+    <h2>Build from source (GitHub Actions)</h2>
+    <p style="font-size:.85rem;color:#555;margin:.25rem 0">
+      Compiles a chosen ESP32 target from the v3.6.3 / v4 branch in GitHub Actions,
+      configures it here in your browser (the bind phrase never leaves this page), and
+      stages it into an OTA slot. Then Connect and use <b>Flash staged → app0/app1</b>.</p>
+    <div class="row">
+      <label for="ghtoken">GitHub token:</label>
+      <input type="password" id="ghtoken" size="42"
+             placeholder="ghp_… (Actions: read/write, Contents: read/write)"/>
+      <span style="font-size:.8rem;color:#777">kept in sessionStorage</span>
+    </div>
+    <div class="row">
+      <label for="bld-version">Version:</label>
+      <select id="bld-version">
+        <option value="v4">v4</option>
+        <option value="v3.6.3">v3.6.3</option>
+      </select>
+      <label for="bld-target">Target:</label>
+      <select id="bld-target"></select>
+    </div>
+    <div class="row">
+      <label for="bld-domain">Domain:</label>
+      <select id="bld-domain"></select>
+      <label for="bld-phrase">Bind phrase:</label>
+      <input type="text" id="bld-phrase" placeholder="optional, stays local"/>
+    </div>
+    <div class="row">
+      <label for="bld-slot">Stage into:</label>
+      <select id="bld-slot">
+        <option value="1">app1 (v4.x)</option>
+        <option value="0">app0 (v3.x)</option>
+      </select>
+      <button id="bld-build">Build &amp; stage</button>
+      <span id="bld-status" style="font-size:.85rem;color:#777"></span>
+    </div>
+    <p id="bld-staged" style="font-size:.85rem;color:#555;margin:.25rem 0"></p>
+  </section>
+
   <div class="row">
     <label for="baud">Baud:</label>
     <select id="baud">
@@ -42,6 +81,11 @@
     <button id="flash">Flash both slots</button>
     <button id="flash0">Flash app0 only (v3.x)</button>
     <button id="flash1">Flash app1 only (v4.x)</button>
+    <div class="row">
+      <button id="bld-flash-staged-0">Flash staged &rarr; app0</button>
+      <button id="bld-flash-staged-1">Flash staged &rarr; app1</button>
+      <span style="font-size:.8rem;color:#777">writes the freshly-built image staged above</span>
+    </div>
     <p style="font-size:.85rem;color:#555;margin:.25rem 0">
       <b>Flash both slots</b> also writes the bootloader, partition table and
       otadata (full provision). <b>Flash appN only</b> writes just that slot's
@@ -73,5 +117,6 @@
   <pre id="log"></pre>
 
   <script type="module" src="flasher.js"></script>
+  <script type="module" src="builder.js"></script>
 </body>
 </html>
