@@ -206,3 +206,49 @@ appears.
 **Reading flash at high baud rates may time out on CH9102.**
 460800 baud works reliably for writes. For reads (`read_flash`) drop to 115200 if
 you get "No serial data received" errors.
+
+---
+
+## Build from source (GitHub Actions)
+
+The **Build** section compiles a chosen ESP32 target from the v3.6.3 / v4 branch in
+GitHub Actions, configures it in your browser (target / domain / bind phrase — the phrase
+never leaves your machine), and stages it into an OTA slot.
+
+1. Paste a GitHub **fine-grained PAT** with **Actions: read/write** and **Contents:
+   read/write** on this repo into the *GitHub token* field (kept in `sessionStorage`).
+2. Pick **version**, **target** (ESP32-only — `esp8285`/`stm32`/`-s3`/`-c3` are hidden
+   because the bundled boot blobs are plain-ESP32 dual-OTA), **domain**, optional **bind
+   phrase**, and the **slot** to stage into; click **Build & stage**. The first build of a
+   given `{version, env}` takes a few minutes; later ones reuse the cached PlatformIO
+   toolchain.
+3. **Connect** to the board, then **Flash staged → app0/app1** (or **Flash both** after
+   staging both slots).
+
+How it works: the `Flasher Build` workflow (`.github/workflows/flasher-build.yml`)
+compiles a *generic* `firmware.bin` for `{branch, env}` and commits it to a force-pushed
+orphan `flasher-artifacts` branch. The browser triggers it (`workflow_dispatch`), polls
+the run, pulls the bin back via the Git Blobs API, and specializes it locally with the
+target's hardware layout + your domain/phrase (same bytes as `python/binary_configurator.py`,
+verified by the parity test in `test/`).
+
+> `workflow_dispatch` requires the workflow file to live on the **dispatched ref**. That
+> ref is `WORKFLOW_REF` in `config.js` (`dual-ota-builder` during development) — change it
+> to your default branch after merging. The version branch to compile is sent separately
+> as the `checkout_ref` input, so the workflow doesn't need to exist on the version branches.
+
+### Host it on GitHub Pages
+
+Enable **Settings → Pages → Build and deployment → GitHub Actions**. The `Flasher Pages`
+workflow (`.github/workflows/flasher-pages.yml`) publishes this folder to
+`https://<owner>.github.io/<repo>/`. Web Serial works there (HTTPS), and the GitHub API
+calls are CORS-allowed from `*.github.io`. The page auto-detects owner/repo on `github.io`;
+for local serving, edit the fallback in `config.js`.
+
+### Tests
+
+```
+cd tools/dual-ota-flasher/test && node --test
+```
+Covers the in-browser configurator (incl. field-parity against this repo's
+`UnifiedConfiguration.appendToFirmware`), ESP32 target filtering, and the GitHub client.
