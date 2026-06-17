@@ -24,8 +24,8 @@ document.addEventListener("memmap", (e) => {
     const el = $("mm-bootloader-state");
     if (el) {
       el.setAttribute("data-i18n", d.value === "custom" ? "mm_custom" : "mm_stock");
-      el.classList.toggle("custom", d.value === "custom");
       window.i18nRefresh?.();   // re-translate the new label in the current language
     }
+    $("mm-cell-boot")?.classList.toggle("custom", d.value === "custom");
   }
 });
