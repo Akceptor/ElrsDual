@@ -14,7 +14,7 @@ export const TARGETS = { owner: "ExpressLRS", repo: "targets", ref: "master" };
 // UI version labels -> the firmware branch the prebuild workflow compiles. The browser
 // uses the label as the artifact path segment; the workflow uses the ref to checkout.
 export const BRANCHES = {
-  "v4": "lua-slot/v4",
+  "v4.0.1": "lua-slot/v4",
   "v3.6.3": "lua-slot/v3.6.3",
 };
 

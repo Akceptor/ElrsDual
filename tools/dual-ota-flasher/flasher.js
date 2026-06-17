@@ -74,9 +74,10 @@ async function fileToUint8(file) {
 // table, the other slot, and the active-slot selection (otadata) untouched. Shared by
 // the file-picker handlers (flashSlot) and the builder's staged images (builder.js).
 export async function flashData(data, address, slotLabel) {
-  if (!esploader) { log("Connect first."); return; }
-  if (!data) { log("Nothing to flash for " + slotLabel + "."); return; }
+  if (!esploader) { log("Connect first."); return false; }
+  if (!data) { log("Nothing to flash for " + slotLabel + "."); return false; }
   setBusy(true);
+  let ok = false;
   try {
     log("Flashing " + slotLabel + " (" + data.length + " bytes @ 0x" + address.toString(16) + ")…");
     await esploader.writeFlash({
@@ -91,31 +92,41 @@ export async function flashData(data, address, slotLabel) {
     log("Flash complete. Resetting…");
     await esploader.after("hard_reset");
     log("Done — " + slotLabel + " updated. Board boots the currently-active slot (use Set active to switch).");
+    ok = true;
   } catch (e) {
     log("Flash error: " + e.message);
   } finally {
     setBusy(false);
   }
+  return ok;
 }
 
 async function flashSlot(file, address, slotLabel) {
-  if (!file) { log("Pick the " + slotLabel + " image first."); return; }
+  if (!file) { log("Pick the " + slotLabel + " image first."); return false; }
   log("Loading " + slotLabel + " image…");
-  await flashData(await fileToUint8(file), address, slotLabel);
+  return await flashData(await fileToUint8(file), address, slotLabel);
 }
 
-document.getElementById("flash0").addEventListener("click", () =>
-  flashSlot(document.getElementById("v3file").files[0], APP0_ADDR, "app0 (v3.x)"));
-document.getElementById("flash1").addEventListener("click", () =>
-  flashSlot(document.getElementById("v4file").files[0], APP1_ADDR, "app1 (v4.x)"));
+// Notify the flash-map widget (memmap.js) of state changes.
+const mm = (detail) => document.dispatchEvent(new CustomEvent("memmap", { detail }));
+
+document.getElementById("flash0").addEventListener("click", async () => {
+  if (await flashSlot(document.getElementById("v3file").files[0], APP0_ADDR, "app0 (v3.x)"))
+    mm({ type: "flashed", slot: 0, label: "local .bin" });
+});
+document.getElementById("flash1").addEventListener("click", async () => {
+  if (await flashSlot(document.getElementById("v4file").files[0], APP1_ADDR, "app1 (v4.x)"))
+    mm({ type: "flashed", slot: 1, label: "local .bin" });
+});
 
 // Full provision from raw bytes: bootloader + partition table + otadata (boot app0) +
 // both app slots. Use for a fresh/stock board that doesn't yet have the dual-OTA layout.
 // Shared by the local-file "Flash both slots" button and the staged "Provision both".
 export async function flashFullProvision(app0Data, app1Data) {
-  if (!esploader) { log("Connect first."); return; }
-  if (!app0Data || !app1Data) { log("Need both a v3.x (app0) and v4.x (app1) image."); return; }
+  if (!esploader) { log("Connect first."); return false; }
+  if (!app0Data || !app1Data) { log("Need both a v3.x (app0) and v4.x (app1) image."); return false; }
   setBusy(true);
+  let ok = false;
   try {
     log("Loading bundled boot blobs…");
     const [bootloader, partitions, bootApp0] = await Promise.all([
@@ -143,18 +154,25 @@ export async function flashFullProvision(app0Data, app1Data) {
     log("Flash complete. Resetting…");
     await esploader.after("hard_reset");
     log("Done — board reboots into app0 (ELRS v3.x).");
+    ok = true;
   } catch (e) {
     log("Flash error: " + e.message);
   } finally {
     setBusy(false);
   }
+  return ok;
 }
 
 document.getElementById("flash").addEventListener("click", async () => {
   const f3 = document.getElementById("v3file").files[0];
   const f4 = document.getElementById("v4file").files[0];
   if (!f3 || !f4) { log("Pick both the v3.x and v4.x images first."); return; }
-  await flashFullProvision(await fileToUint8(f3), await fileToUint8(f4));
+  if (await flashFullProvision(await fileToUint8(f3), await fileToUint8(f4))) {
+    mm({ type: "flashed", slot: 0, label: "local .bin" });
+    mm({ type: "flashed", slot: 1, label: "local .bin" });
+    mm({ type: "active", slot: 0 });
+    mm({ type: "bootloader", value: "stock" });
+  }
 });
 
 function downloadBytes(data, filename) {
@@ -230,6 +248,7 @@ document.getElementById("active").addEventListener("click", async () => {
     log("Currently boots: " + msg + "   [seq app0=" + s0 + " app1=" + s1 + "]");
     const radio = document.querySelector(`input[name="slotsel"][value="${slot}"]`);
     if (radio) radio.checked = true;
+    mm({ type: "active", slot });
   } catch (e) {
     log("otadata read error: " + e.message);
   } finally {
@@ -277,6 +296,7 @@ document.getElementById("flashboot").addEventListener("click", async () => {
     });
     await esploader.after("hard_reset");
     log("Slot-switch bootloader installed. 3 quick power cycles now flips the slot.");
+    mm({ type: "bootloader", value: "custom" });
   } catch (e) {
     log("Bootloader flash error: " + e.message);
   } finally {
@@ -298,6 +318,7 @@ document.getElementById("setslot").addEventListener("click", async () => {
     });
     await esploader.after("hard_reset");
     log("Active slot → " + (slot === 0 ? "app0 (ELRS v3.x)" : "app1 (ELRS v4.x)") + ". Rebooting…");
+    mm({ type: "active", slot });
   } catch (e) {
     log("Set slot error: " + e.message);
   } finally {
