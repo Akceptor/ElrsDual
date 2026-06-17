@@ -23,8 +23,10 @@ document.addEventListener("memmap", (e) => {
   } else if (d.type === "bootloader") {
     const el = $("mm-bootloader-state");
     if (el) {
-      el.setAttribute("data-i18n", d.value === "custom" ? "mm_custom" : "mm_stock");
-      window.i18nRefresh?.();   // re-translate the new label in the current language
+      // Icon + tooltip instead of a long text pill (too wide for the narrow cell).
+      el.textContent = d.value === "custom" ? "🔁" : d.value === "stock" ? "▪" : "—";
+      el.setAttribute("data-i18n-title", d.value === "custom" ? "mm_custom" : d.value === "stock" ? "mm_stock" : "mm_unknown");
+      window.i18nRefresh?.();   // apply the tooltip in the current language
     }
     $("mm-cell-boot")?.classList.toggle("custom", d.value === "custom");
   }

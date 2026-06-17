@@ -111,6 +111,9 @@ function apply(lang) {
   for (const el of document.querySelectorAll("[data-i18n-ph]")) {
     const v = dict[el.getAttribute("data-i18n-ph")]; if (v != null) el.placeholder = v;
   }
+  for (const el of document.querySelectorAll("[data-i18n-title]")) {
+    const v = dict[el.getAttribute("data-i18n-title")]; if (v != null) el.title = v;
+  }
   const btn = document.getElementById("lang-toggle");
   if (btn) btn.textContent = cur === "uk" ? "🇺🇦 UA" : "🇬🇧 EN";
 }
