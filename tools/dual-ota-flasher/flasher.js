@@ -251,19 +251,24 @@ document.getElementById("active").addEventListener("click", async () => {
   try {
     const od = await esploader.readFlash(OTADATA_ADDR, OTADATA_SIZE, () => {});
     const dv = new DataView(od.buffer, od.byteOffset, od.byteLength);
-    const s0 = dv.getUint32(0x0000, true);
-    const s1 = dv.getUint32(0x1000, true);
-    const valid = (x) => x !== 0 && x !== 0xffffffff;
-    const cand = [s0, s1].filter(valid);
+    // An entry counts only if its CRC matches — exactly bootloader_common_ota_select_valid().
+    const entrySeq = (base) => {
+      const seq = dv.getUint32(base, true);
+      const crc = dv.getUint32(base + 0x1C, true);
+      return (seq !== 0 && seq !== 0xffffffff && crc === entryCrc(seq)) ? seq : 0;
+    };
+    const s0 = entrySeq(0x0000);
+    const s1 = entrySeq(0x1000);
+    const cand = [s0, s1].filter((x) => x > 0);
     let msg, slot;
     if (cand.length === 0) {
-      msg = "indeterminate (otadata blank) — boots app0 (ELRS v3.x)";
+      msg = "indeterminate (no valid otadata) — boots app0 (ELRS v3.x)";
       slot = 0;
     } else {
       slot = (Math.max(...cand) - 1) % 2;
       msg = slot === 0 ? "app0 (ELRS v3.x)" : "app1 (ELRS v4.x)";
     }
-    log("Currently boots: " + msg + "   [seq app0=" + s0 + " app1=" + s1 + "]");
+    log("Currently boots: " + msg + "   [valid seq app0=" + s0 + " app1=" + s1 + "]");
     const radio = document.querySelector(`input[name="slotsel"][value="${slot}"]`);
     if (radio) radio.checked = true;
     mm({ type: "active", slot });
@@ -274,9 +279,11 @@ document.getElementById("active").addEventListener("click", async () => {
   }
 });
 
-// Standard reflected CRC32, matching ESP-IDF's bootloader_common_crc32
+// CRC used by ESP-IDF otadata (esp_rom_crc32_le): reflected poly 0xEDB88320,
+// init 0x00000000, final XOR 0xFFFFFFFF. NOTE: init is 0, not 0xFFFFFFFF — that
+// distinction is why a slot set with the wrong CRC was ignored by the bootloader.
 function crc32(data) {
-  let crc = 0xFFFFFFFF;
+  let crc = 0x00000000;
   for (const b of data) {
     crc ^= b;
     for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
@@ -285,17 +292,22 @@ function crc32(data) {
 }
 
 // Build a fresh 8192-byte otadata that selects the given slot.
-// esp_ota_select_entry_t layout: ota_seq (4B) | seq_label (20B, 0xFF) | crc32 (4B)
+// esp_ota_select_entry_t (32 B): ota_seq u32 @0 | seq_label[20] @4 | ota_state u32 @24 | crc u32 @28.
+// The (stock + slot-switch) bootloader treats an entry as valid only when
+// crc == crc32(ota_seq) — the CRC MUST sit at offset 0x1C, not 0x18 (ota_state).
 // Active slot = (max_valid_seq - 1) % 2, so seq=1 → slot 0, seq=2 → slot 1.
+function entryCrc(seq) {
+  const b = new Uint8Array(4);
+  new DataView(b.buffer).setUint32(0, seq, true);
+  return crc32(b);
+}
 function buildOtadata(slot) {
   const buf = new Uint8Array(OTADATA_SIZE).fill(0xFF);
   const seq = slot === 0 ? 1 : 2;
   const dv = new DataView(buf.buffer);
-  dv.setUint32(0x0000, seq, true);                          // ota_seq (record 0)
-  const seqBytes = new Uint8Array(4);
-  new DataView(seqBytes.buffer).setUint32(0, seq, true);
-  dv.setUint32(0x0018, crc32(seqBytes), true);              // CRC at offset 24
-  // record 1 at 0x1000 stays all 0xFF → invalid
+  dv.setUint32(0x0000, seq, true);              // ota_seq (record 0)
+  dv.setUint32(0x001C, entryCrc(seq), true);    // crc @0x1C — what the bootloader validates
+  // ota_state @0x18 and seq_label stay 0xFF; record 1 @0x1000 stays all 0xFF → invalid
   return buf;
 }
 
