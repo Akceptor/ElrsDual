@@ -43,6 +43,14 @@ function fillDevices() {
 }
 const selectedTarget = () => esp32.find((t) => t.id === $("bld-device").value);
 
+// Staged-flash buttons are only usable when the relevant slot(s) are staged.
+function updateFlashButtons() {
+  const b0 = $("bld-flash-staged-0"), b1 = $("bld-flash-staged-1"), bb = $("bld-flash-staged-both");
+  if (b0) b0.disabled = !staged[0];
+  if (b1) b1.disabled = !staged[1];
+  if (bb) bb.disabled = !(staged[0] && staged[1]);
+}
+
 async function loadTargets() {
   setStatus("loading targets…");
   const res = await fetch(TARGETS_RAW("targets.json"));
@@ -89,6 +97,7 @@ async function prepareAndStage() {
 
     const label = `${versionLabel} · ${dev.product_name}`;
     staged[slot] = { bytes: configured, label };
+    updateFlashButtons();
     mm({ type: "staged", slot, label });   // shown on the flash-map diagram, not as text
     setStatus("staged ✓ — Connect, then Flash staged");
     log(`Staged ${label} (${domain}) → ${slot === 0 ? "app0" : "app1"} (${configured.length} bytes)`);
@@ -130,6 +139,9 @@ function init() {
   $("bld-flash-staged-0")?.addEventListener("click", () => flashStaged(0));
   $("bld-flash-staged-1")?.addEventListener("click", () => flashStaged(1));
   $("bld-flash-staged-both")?.addEventListener("click", provisionBothStaged);
+  // Re-apply staging constraints whenever an operation finishes re-enabling buttons.
+  window.onBusyChange = (busy) => { if (!busy) updateFlashButtons(); };
+  updateFlashButtons();
   loadTargets().catch((e) => setStatus(e.message));
 }
 

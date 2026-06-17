@@ -83,6 +83,11 @@
   .btn-lg { padding:11px 28px; font-size:1rem; }
   .btn-row { display:flex; flex-wrap:wrap; gap:8px; margin:.5rem 0; }
   .getrow { display:flex; flex-direction:column; align-items:center; gap:6px; margin:1rem 0 .2rem; }
+  /* tidy button groups: a primary action on its own row, secondary actions paired */
+  .actions { display:flex; flex-direction:column; gap:8px; margin:.6rem 0; }
+  .actions > button { width:100%; }
+  .actions .pair { display:flex; gap:8px; flex-wrap:wrap; }
+  .actions .pair > button { flex:1 1 180px; }
 
   .info { background:var(--infobg); color:var(--infoink); border:1px solid var(--info-line);
           border-radius:9px; padding:10px 12px; font-size:.86rem; margin:.6rem 0; }
@@ -106,6 +111,7 @@
          white-space:pre-wrap; font-family:ui-monospace,Menlo,monospace; font-size:.8rem; margin-top:8px; }
   .tools-head { font-size:.8rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:26px 0 10px; }
   .chk { display:flex; align-items:center; gap:8px; font-size:.88rem; color:var(--ink); margin:.5rem 0; }
+  .chk.center { justify-content:center; text-align:center; }
   .explainer { display:block; width:100%; text-align:center; margin:18px 0 0; padding:13px 16px;
                background:linear-gradient(135deg,var(--accent),#7c3aed); color:#fff; font-weight:700;
                text-decoration:none; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.18); transition:filter .15s; }
@@ -264,12 +270,14 @@
       <div class="group">
         <h3 data-i18n="grp_cloud_h">Flash the firmware you staged (from the cloud)</h3>
         <small data-i18n="grp_cloud_small">Use these after Step 1.</small>
-        <label class="chk"><input type="checkbox" id="bld-bootsw" checked/>
-          <span data-i18n="use_slotsw">Install slot-switch bootloader (3 power-cycles switch slots)</span></label>
-        <div class="btn-row">
-          <button id="bld-flash-staged-both" class="btn-primary" data-i18n="btn_provision_both">Provision both slots (fresh board)</button>
-          <button id="bld-flash-staged-0" data-i18n="btn_update0">Update app0 (v3.x) in place</button>
-          <button id="bld-flash-staged-1" data-i18n="btn_update1">Update app1 (v4.x) in place</button>
+        <div class="actions">
+          <button id="bld-flash-staged-both" class="btn-primary btn-lg" data-i18n="btn_provision_both">Provision both slots (fresh board)</button>
+          <label class="chk center"><input type="checkbox" id="bld-bootsw" checked/>
+            <span data-i18n="use_slotsw">Install slot-switch bootloader (3 power-cycles switch slots)</span></label>
+          <div class="pair">
+            <button id="bld-flash-staged-0" data-i18n="btn_update0">Update app0 (v3.x) in place</button>
+            <button id="bld-flash-staged-1" data-i18n="btn_update1">Update app1 (v4.x) in place</button>
+          </div>
         </div>
         <div class="info" data-i18n-html="info3">
           <b>Provision both</b> sets up a new/stock board — it writes the bootloader, partition
@@ -284,10 +292,12 @@
         <div class="adv-body">
           <div class="field"><span data-i18n="lbl_v3file">v3.x image (→ app0):</span> <input type="file" id="v3file" accept=".bin"/></div>
           <div class="field"><span data-i18n="lbl_v4file">v4.x image (→ app1):</span> <input type="file" id="v4file" accept=".bin"/></div>
-          <div class="btn-row">
+          <div class="actions">
             <button id="flash" data-i18n="btn_flash_both">Flash both slots (full provision)</button>
-            <button id="flash0" data-i18n="btn_flash0">Flash app0 only</button>
-            <button id="flash1" data-i18n="btn_flash1">Flash app1 only</button>
+            <div class="pair">
+              <button id="flash0" data-i18n="btn_flash0">Flash app0 only</button>
+              <button id="flash1" data-i18n="btn_flash1">Flash app1 only</button>
+            </div>
           </div>
           <small data-i18n="adv_local_small">For images you configured yourself with the ELRS Configurator / official web flasher.</small>
         </div>
@@ -296,10 +306,10 @@
       <details class="adv">
         <summary>📥 <span data-i18n="adv_read_sum">Read firmware back from a slot</span></summary>
         <div class="adv-body">
-          <div class="btn-row">
+          <div class="actions"><div class="pair">
             <button id="read0" data-i18n="btn_read0">Read app0 (v3.x)</button>
             <button id="read1" data-i18n="btn_read1">Read app1 (v4.x)</button>
-          </div>
+          </div></div>
           <small data-i18n-html="adv_read_small">Downloads the full slot to a <code>.bin</code> (≈1 min each).</small>
         </div>
       </details>
@@ -314,16 +324,16 @@
         <label><input type="radio" name="slotsel" value="0"/> app0 (v3.x)</label>
         <label><input type="radio" name="slotsel" value="1"/> app1 (v4.x)</label>
       </div>
-      <div class="btn-row">
+      <div class="actions"><div class="pair">
         <button id="active" data-i18n="btn_readactive">Read active</button>
         <button id="setslot" class="btn-primary" data-i18n="btn_setslot">Set active + reboot</button>
-      </div>
+      </div></div>
     </section>
 
     <section class="step">
       <div class="step-head"><span class="badge tool">⚙</span><h2 data-i18n="bootl_h">Slot-switch bootloader</h2></div>
       <p class="step-desc" data-i18n-html="bootl_desc">Installs a custom second-stage bootloader (to <code>0x1000</code> only; app slots untouched). Then <b>3 quick power-cycles</b> (each off/on within ~2&nbsp;s) flip the active slot — no computer needed. Normal boots wait ~2&nbsp;s. 4&nbsp;MB ESP32 / min_spiffs.</p>
-      <div class="btn-row">
+      <div class="actions">
         <button id="flashboot" data-i18n="btn_flashboot">Flash slot-switch bootloader (0x1000)</button>
       </div>
     </section>
