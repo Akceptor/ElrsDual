@@ -62,7 +62,7 @@ async function loadTargets() {
     return { ...t, mfr, cat, device };
   });
   fillVendors();
-  setStatus(`${esp32.length} ESP32 targets`);
+  setStatus("");
 }
 
 async function fetchLayout(dev) {
