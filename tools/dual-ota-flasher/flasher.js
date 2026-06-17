@@ -109,24 +109,24 @@ document.getElementById("flash0").addEventListener("click", () =>
 document.getElementById("flash1").addEventListener("click", () =>
   flashSlot(document.getElementById("v4file").files[0], APP1_ADDR, "app1 (v4.x)"));
 
-document.getElementById("flash").addEventListener("click", async () => {
-  const f3 = document.getElementById("v3file").files[0];
-  const f4 = document.getElementById("v4file").files[0];
+// Full provision from raw bytes: bootloader + partition table + otadata (boot app0) +
+// both app slots. Use for a fresh/stock board that doesn't yet have the dual-OTA layout.
+// Shared by the local-file "Flash both slots" button and the staged "Provision both".
+export async function flashFullProvision(app0Data, app1Data) {
   if (!esploader) { log("Connect first."); return; }
-  if (!f3 || !f4) { log("Pick both the v3.x and v4.x images first."); return; }
+  if (!app0Data || !app1Data) { log("Need both a v3.x (app0) and v4.x (app1) image."); return; }
   setBusy(true);
   try {
-    log("Loading images…");
-    const [bootloader, partitions, bootApp0, app0, app1] = await Promise.all([
+    log("Loading bundled boot blobs…");
+    const [bootloader, partitions, bootApp0] = await Promise.all([
       fetchBin("bootloader.bin"), fetchBin("partitions.bin"), fetchBin("boot_app0.bin"),
-      fileToUint8(f3), fileToUint8(f4),
     ]);
     const fileArray = [
       { data: bootloader, address: 0x1000 },
       { data: partitions, address: 0x8000 },
       { data: bootApp0,   address: OTADATA_ADDR },
-      { data: app0,       address: APP0_ADDR },
-      { data: app1,       address: APP1_ADDR },
+      { data: app0Data,   address: APP0_ADDR },
+      { data: app1Data,   address: APP1_ADDR },
     ];
     log("Flashing 5 regions (v3 -> app0, v4 -> app1)…");
     await esploader.writeFlash({
@@ -148,6 +148,13 @@ document.getElementById("flash").addEventListener("click", async () => {
   } finally {
     setBusy(false);
   }
+}
+
+document.getElementById("flash").addEventListener("click", async () => {
+  const f3 = document.getElementById("v3file").files[0];
+  const f4 = document.getElementById("v4file").files[0];
+  if (!f3 || !f4) { log("Pick both the v3.x and v4.x images first."); return; }
+  await flashFullProvision(await fileToUint8(f3), await fileToUint8(f4));
 });
 
 function downloadBytes(data, filename) {

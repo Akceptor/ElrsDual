@@ -1,7 +1,7 @@
 import { REPO, BRANCHES, ARTIFACT_BRANCH, TARGETS, DOMAINS } from "./config.js";
 import { flattenTargets, filterEsp32Targets, targetToEnv } from "./targets.js";
 import { buildDefines, appendConfig } from "./configure.js";
-import { flashData, log, isConnected, APP0_ADDR, APP1_ADDR } from "./flasher.js";
+import { flashData, flashFullProvision, log, isConnected, APP0_ADDR, APP1_ADDR } from "./flasher.js";
 
 // Public raw URLs (no token, CORS *). Path segments are encoded individually so filenames
 // with spaces work; the ref segments here have no slashes so they pass through fine.
@@ -81,12 +81,21 @@ async function flashStaged(slot) {
   await flashData(staged[slot].bytes, slot === 0 ? APP0_ADDR : APP1_ADDR, `app${slot} (staged)`);
 }
 
+// Full provision (bootloader + partitions + otadata + both apps) from the staged bins.
+// Use on a fresh board that doesn't have the dual-OTA layout yet.
+async function provisionBothStaged() {
+  if (!staged[0] || !staged[1]) { setStatus("stage BOTH app0 (v3) and app1 (v4) first"); return; }
+  if (!isConnected()) { setStatus("Connect to the board first"); return; }
+  await flashFullProvision(staged[0].bytes, staged[1].bytes);
+}
+
 function init() {
   $("bld-domain").innerHTML = DOMAINS.map((d) => `<option value="${d}">${d}</option>`).join("");
   $("bld-version").innerHTML = Object.keys(BRANCHES).map((v) => `<option value="${v}">${v}</option>`).join("");
   $("bld-build").addEventListener("click", prepareAndStage);
   $("bld-flash-staged-0")?.addEventListener("click", () => flashStaged(0));
   $("bld-flash-staged-1")?.addEventListener("click", () => flashStaged(1));
+  $("bld-flash-staged-both")?.addEventListener("click", provisionBothStaged);
   renderStaged();
   loadTargets().catch((e) => setStatus(e.message));
 }
