@@ -40,16 +40,19 @@ async function hardReboot() {
   if (viaPassthrough) {
     // RTS/DTR here toggle the radio's VCP, not the module — can't reset it from here.
     log("Flashed via EdgeTX passthrough — power-cycle the radio to run the new firmware.");
-    return;
+  } else {
+    try {
+      await transport.setDTR(false);   // GPIO0 high → run the app, not the bootloader
+      await transport.setRTS(true);    // EN low → assert reset
+      await new Promise((r) => setTimeout(r, 100));
+      await transport.setRTS(false);   // EN high → out of reset, boots
+    } catch (e) {
+      log("Reset error: " + (e.message || e) + " — power-cycle the board to reboot.");
+    }
   }
-  try {
-    await transport.setDTR(false);   // GPIO0 high → run the app, not the bootloader
-    await transport.setRTS(true);    // EN low → assert reset
-    await new Promise((r) => setTimeout(r, 100));
-    await transport.setRTS(false);   // EN high → out of reset, boots
-  } catch (e) {
-    log("Reset error: " + (e.message || e) + " — power-cycle the board to reboot.");
-  }
+  // The chip has left the bootloader and is running the app — the esptool session is now
+  // stale, so drop the connection (reconnect to do more).
+  await disconnect();
 }
 
 if (!navigator.serial) {
@@ -74,6 +77,7 @@ async function disconnect() {
   transport = null;
   viaPassthrough = false;
   setConnUI(false);
+  document.dispatchEvent(new CustomEvent("ui-reset"));   // clear staged state + diagram
   log("Disconnected.");
 }
 

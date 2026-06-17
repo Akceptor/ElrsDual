@@ -10,6 +10,19 @@ function setActive(slot) {
   $("mm-badge-1")?.classList.toggle("show", slot === 1);
 }
 
+// Reset the whole diagram to its blank state (on disconnect / start from scratch).
+document.addEventListener("ui-reset", () => {
+  for (const id of ["mm-staged-0", "mm-board-0", "mm-staged-1", "mm-board-1"]) {
+    const el = $(id);
+    if (el) { el.textContent = "—"; el.classList.remove("set"); }
+  }
+  setActive(-1);
+  const b = $("mm-bootloader-state");
+  if (b) { b.textContent = "—"; b.setAttribute("data-i18n-title", "mm_unknown"); }
+  $("mm-cell-boot")?.classList.remove("custom");
+  window.i18nRefresh?.();
+});
+
 document.addEventListener("memmap", (e) => {
   const d = e.detail || {};
   if (d.type === "staged") {
