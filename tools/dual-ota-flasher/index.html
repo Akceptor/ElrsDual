@@ -210,9 +210,27 @@
     </div>
   </section>
 
-  <!-- STEP 1 — configure & stage -->
+  <!-- STEP 1 — connect -->
+  <section class="step">
+    <div class="step-head"><span class="badge">1</span><h2 data-i18n="step2_h">Connect your board</h2></div>
+    <p class="step-desc" data-i18n-html="step2_desc">Plug the board in over USB and connect. Hold <b>BOOT</b> while connecting if it won’t sync. Flashing tools unlock once connected.</p>
+    <div class="field">
+      <label class="lbl" for="baud" data-i18n="lbl_baud">Baud</label>
+      <select id="baud">
+        <option value="115200">115200</option>
+        <option value="230400">230400</option>
+        <option value="460800" selected>460800</option>
+        <option value="921600">921600</option>
+      </select>
+      <button id="connect" class="btn-primary" data-i18n="btn_connect">Connect</button>
+      <button id="detect" disabled data-i18n="btn_detect">Detect target</button>
+    </div>
+    <p class="step-desc" data-i18n="detect_hint">“Detect target” reads firmware already on the board and pre-selects it below (won’t work on an empty/stock board).</p>
+  </section>
+
+  <!-- STEP 2 — configure & stage -->
   <section class="step" id="build-section">
-    <div class="step-head"><span class="badge">1</span><h2 data-i18n="step1_h">Configure firmware</h2></div>
+    <div class="step-head"><span class="badge">2</span><h2 data-i18n="step1_h">Configure firmware</h2></div>
     <p class="step-desc" data-i18n-html="step1_desc">Pick a version + your board, set the region and (optionally) a bind phrase. It downloads the matching pre-built firmware and personalises it <b>in your browser</b> (the bind phrase never leaves this page).</p>
 
     <div class="form">
@@ -245,22 +263,6 @@
       one boots (Step 3 → <i>Active slot</i>, or 3 quick power-cycles with the slot-switch
       bootloader). Stage one slot to keep the other untouched, or stage <b>both</b> to load
       v3 and v4 together.
-    </div>
-  </section>
-
-  <!-- STEP 2 — connect -->
-  <section class="step">
-    <div class="step-head"><span class="badge">2</span><h2 data-i18n="step2_h">Connect your board</h2></div>
-    <p class="step-desc" data-i18n-html="step2_desc">Plug the board in over USB and connect. Hold <b>BOOT</b> while connecting if it won’t sync. Flashing tools unlock once connected.</p>
-    <div class="field">
-      <label class="lbl" for="baud" data-i18n="lbl_baud">Baud</label>
-      <select id="baud">
-        <option value="115200">115200</option>
-        <option value="230400">230400</option>
-        <option value="460800" selected>460800</option>
-        <option value="921600">921600</option>
-      </select>
-      <button id="connect" class="btn-primary" data-i18n="btn_connect">Connect</button>
     </div>
   </section>
 

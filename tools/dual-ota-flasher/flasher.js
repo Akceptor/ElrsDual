@@ -18,7 +18,7 @@ const terminal = {
   write(data) { logEl.textContent += data; logEl.scrollTop = logEl.scrollHeight; },
 };
 
-const ACTION_IDS = ["connect", "flash", "flash0", "flash1", "read0", "read1", "active", "setslot", "flashboot",
+const ACTION_IDS = ["connect", "detect", "flash", "flash0", "flash1", "read0", "read1", "active", "setslot", "flashboot",
   "bld-build", "bld-flash-staged-0", "bld-flash-staged-1", "bld-flash-staged-both"];
 export function isConnected() { return esploader !== null; }
 export { APP0_ADDR, APP1_ADDR };
@@ -50,14 +50,30 @@ if (!navigator.serial) {
   document.getElementById("connect").disabled = true;
 }
 
-document.getElementById("connect").addEventListener("click", async () => {
-  const controls = document.getElementById("controls");
-  // Tear down any prior session first: a failed (re)connect must not leave a
-  // half-initialized loader behind still-visible controls. The action buttons
-  // guard on `esploader`, so it must be null until we have a fully usable one.
+// Reflect connection state in the UI: show/hide flashing controls, flip the connect
+// button between Connect/Disconnect (via i18n), and enable the Detect button.
+function setConnUI(connected) {
+  document.getElementById("controls").style.display = connected ? "block" : "none";
+  const c = document.getElementById("connect");
+  c.setAttribute("data-i18n", connected ? "btn_disconnect" : "btn_connect");
+  const d = document.getElementById("detect");
+  if (d) d.disabled = !connected;
+  if (window.i18nRefresh) window.i18nRefresh();
+}
+
+async function disconnect() {
+  try { await transport?.disconnect(); } catch (_) {}
   esploader = null;
   transport = null;
-  controls.style.display = "none";
+  setConnUI(false);
+  log("Disconnected.");
+}
+
+document.getElementById("connect").addEventListener("click", async () => {
+  if (esploader) { await disconnect(); return; }   // toggle: disconnect when connected
+  esploader = null;
+  transport = null;
+  setConnUI(false);
   try {
     const port = await navigator.serial.requestPort();
     const baud = parseInt(document.getElementById("baud").value, 10) || 460800;
@@ -91,11 +107,11 @@ document.getElementById("connect").addEventListener("click", async () => {
     transport = t;
     esploader = loader;
     log("Connected: " + chip + "   [" + chipName + ", " + (mb ? mb + " MB flash" : "flash size unknown") + "]");
-    controls.style.display = "block";
+    setConnUI(true);
   } catch (e) {
     esploader = null;
     transport = null;
-    controls.style.display = "none";
+    setConnUI(false);
     log("Connect failed: " + e.message + "  (hold the BOOT button and retry)");
   }
 });
@@ -268,30 +284,33 @@ async function readSlot(addr, filename) {
 document.getElementById("read0").addEventListener("click", () => readSlot(APP0_ADDR, "app0-v3.bin"));
 document.getElementById("read1").addEventListener("click", () => readSlot(APP1_ADDR, "app1-v4.bin"));
 
+// Read raw flash bytes (with retry). Returns null if not connected. Used by the
+// target-detect feature in builder.js.
+export async function readFlashBytes(addr, len) {
+  if (!esploader) return null;
+  return await readChunk(addr, len);
+}
+
+// Which OTA slot boots, per the bootloader's otadata rules (CRC-validated entries).
+export async function readActiveSlot() {
+  if (!esploader) return 0;
+  const od = await esploader.readFlash(OTADATA_ADDR, OTADATA_SIZE, () => {});
+  const dv = new DataView(od.buffer, od.byteOffset, od.byteLength);
+  const seqAt = (base) => {
+    const seq = dv.getUint32(base, true);
+    const crc = dv.getUint32(base + 0x1C, true);
+    return (seq !== 0 && seq !== 0xffffffff && crc === entryCrc(seq)) ? seq : 0;
+  };
+  const cand = [seqAt(0x0000), seqAt(0x1000)].filter((x) => x > 0);
+  return cand.length ? (Math.max(...cand) - 1) % 2 : 0;
+}
+
 document.getElementById("active").addEventListener("click", async () => {
   if (!esploader) { log("Connect first."); return; }
   setBusy(true);
   try {
-    const od = await esploader.readFlash(OTADATA_ADDR, OTADATA_SIZE, () => {});
-    const dv = new DataView(od.buffer, od.byteOffset, od.byteLength);
-    // An entry counts only if its CRC matches — exactly bootloader_common_ota_select_valid().
-    const entrySeq = (base) => {
-      const seq = dv.getUint32(base, true);
-      const crc = dv.getUint32(base + 0x1C, true);
-      return (seq !== 0 && seq !== 0xffffffff && crc === entryCrc(seq)) ? seq : 0;
-    };
-    const s0 = entrySeq(0x0000);
-    const s1 = entrySeq(0x1000);
-    const cand = [s0, s1].filter((x) => x > 0);
-    let msg, slot;
-    if (cand.length === 0) {
-      msg = "indeterminate (no valid otadata) — boots app0 (ELRS v3.x)";
-      slot = 0;
-    } else {
-      slot = (Math.max(...cand) - 1) % 2;
-      msg = slot === 0 ? "app0 (ELRS v3.x)" : "app1 (ELRS v4.x)";
-    }
-    log("Currently boots: " + msg + "   [valid seq app0=" + s0 + " app1=" + s1 + "]");
+    const slot = await readActiveSlot();
+    log("Currently boots: " + (slot === 0 ? "app0 (ELRS v3.x)" : "app1 (ELRS v4.x)"));
     const radio = document.querySelector(`input[name="slotsel"][value="${slot}"]`);
     if (radio) radio.checked = true;
     mm({ type: "active", slot });

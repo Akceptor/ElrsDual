@@ -1,7 +1,9 @@
 import { REPO, BRANCHES, ARTIFACT_BRANCH, TARGETS, DOMAINS } from "./config.js";
 import { flattenTargets, filterEsp32Targets, targetToEnv } from "./targets.js";
 import { buildDefines, appendConfig } from "./configure.js";
-import { flashData, flashFullProvision, log, isConnected, APP0_ADDR, APP1_ADDR } from "./flasher.js";
+import { flashData, flashFullProvision, log, isConnected, setBusy, readFlashBytes, readActiveSlot, APP0_ADDR, APP1_ADDR } from "./flasher.js";
+
+const DOMAIN_BY_NUM = ["au_915", "fcc_915", "eu_868", "in_866", "au_433", "eu_433", "us_433", "us_433_wide"];
 
 // Public raw URLs (no token, CORS *). Path segments are encoded individually so filenames
 // with spaces work; the ref segments here have no slashes so they pass through fine.
@@ -109,6 +111,80 @@ async function prepareAndStage() {
   }
 }
 
+// ---- detect the target from firmware already on the board ----
+// ELRS appends a config block after the firmware: product_name(128) + lua_name(16) +
+// defines JSON(512) + layout(2048). Parse product_name + domain and match a known target.
+async function readConfigFromSlot(slotAddr) {
+  const hdr = await readFlashBytes(slotAddr, 24);
+  if (!hdr || hdr[0] !== 0xe9) return null;     // no valid esp image in this slot
+  const segs = hdr[1];
+  if (segs === 2) return null;                  // 8285 layout — unsupported
+  let pos = 24;
+  for (let i = 0; i < segs; i++) {
+    const sh = await readFlashBytes(slotAddr + pos, 8);
+    if (!sh) return null;
+    const size = new DataView(sh.buffer, sh.byteOffset, sh.byteLength).getUint32(4, true);
+    pos += 8 + size;
+    if (pos > 0x1E0000) return null;            // ran past the partition — bail
+  }
+  pos = ((pos + 16) & ~15) + 32;                // findFirmwareEnd (esp32 path)
+  const blk = await readFlashBytes(slotAddr + pos, 128 + 16 + 512);
+  if (!blk) return null;
+  const dec = new TextDecoder();
+  const cstr = (off, len) => dec.decode(blk.subarray(off, off + len)).replace(/\0[\s\S]*$/, "").trim();
+  const product = cstr(0, 128);
+  let domain = null;
+  try {
+    const d = JSON.parse(cstr(144, 512) || "{}");
+    if (typeof d.domain === "number") domain = DOMAIN_BY_NUM[d.domain] || null;
+  } catch (_) { /* defines not JSON / bare firmware */ }
+  return { product, domain };
+}
+
+function selectTarget(target, domain) {
+  $("bld-vendor").value = target.mfr;
+  fillCategories();
+  $("bld-category").value = target.cat;
+  fillDevices();
+  $("bld-device").value = target.id;
+  if (domain && [...$("bld-domain").options].some((o) => o.value === domain)) $("bld-domain").value = domain;
+}
+
+async function detectTarget() {
+  if (!isConnected()) { setStatus("Connect first"); return; }
+  setBusy(true);
+  try {
+    setStatus("reading the board…");
+    const active = await readActiveSlot();
+    const addr = { 0: APP0_ADDR, 1: APP1_ADDR };
+    const cfg = {};
+    for (const s of [0, 1]) {
+      cfg[s] = await readConfigFromSlot(addr[s]);
+      if (cfg[s] && cfg[s].product) {
+        const t = esp32.find((x) => x.dev.product_name === cfg[s].product);
+        // Reflect what's actually on the board in the flash-map diagram.
+        mm({ type: "flashed", slot: s, label: t ? t.dev.product_name : cfg[s].product });
+      }
+    }
+    mm({ type: "active", slot: active });
+
+    // Pre-select the Configure form from the active slot's config (fallback to the other).
+    const pick = (cfg[active] && cfg[active].product) ? cfg[active] : (cfg[active ^ 1] || null);
+    const t = pick && esp32.find((x) => x.dev.product_name === pick.product);
+    log(`Detected: app0=${cfg[0]?.product || "—"} · app1=${cfg[1]?.product || "—"} · active=app${active}`);
+    if (t) {
+      selectTarget(t, pick.domain);
+      setStatus(`detected: ${t.dev.product_name}${pick.domain ? " · " + pick.domain : ""}`);
+    } else {
+      setStatus("no matching ELRS target (empty/stock board, or unknown product)");
+    }
+  } catch (e) {
+    setStatus("detect error: " + (e.message || e));
+  } finally {
+    setBusy(false);
+  }
+}
+
 async function flashStaged(slot) {
   if (!staged[slot]) { setStatus(`nothing staged for app${slot}`); return; }
   if (!isConnected()) { setStatus("Connect to the board first"); return; }
@@ -136,6 +212,7 @@ function init() {
   $("bld-vendor").addEventListener("change", fillCategories);
   $("bld-category").addEventListener("change", fillDevices);
   $("bld-build").addEventListener("click", prepareAndStage);
+  $("detect")?.addEventListener("click", detectTarget);
   $("bld-flash-staged-0")?.addEventListener("click", () => flashStaged(0));
   $("bld-flash-staged-1")?.addEventListener("click", () => flashStaged(1));
   $("bld-flash-staged-both")?.addEventListener("click", provisionBothStaged);
