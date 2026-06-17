@@ -111,16 +111,19 @@ function apply(lang) {
   for (const el of document.querySelectorAll("[data-i18n-ph]")) {
     const v = dict[el.getAttribute("data-i18n-ph")]; if (v != null) el.placeholder = v;
   }
+  const btn = document.getElementById("lang-toggle");
+  if (btn) btn.textContent = cur === "uk" ? "🇺🇦 UA" : "🇬🇧 EN";
 }
 
 function init() {
-  const sel = document.getElementById("lang");
   const saved = localStorage.getItem("lang");
   const lang = saved || ((navigator.language || "en").toLowerCase().startsWith("uk") ? "uk" : "en");
-  if (sel) {
-    sel.value = lang;
-    sel.addEventListener("change", () => { localStorage.setItem("lang", sel.value); apply(sel.value); });
-  }
+  const btn = document.getElementById("lang-toggle");
+  if (btn) btn.addEventListener("click", () => {
+    const next = cur === "en" ? "uk" : "en";
+    localStorage.setItem("lang", next);
+    apply(next);
+  });
   apply(lang);
 }
 
