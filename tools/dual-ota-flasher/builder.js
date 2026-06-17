@@ -111,6 +111,16 @@ async function prepareAndStage() {
   }
 }
 
+// Find an ASCII needle in a byte array (for bootloader signature detection).
+function bytesIndexOf(hay, needle) {
+  const n = new TextEncoder().encode(needle);
+  outer: for (let i = 0; i <= hay.length - n.length; i++) {
+    for (let j = 0; j < n.length; j++) if (hay[i + j] !== n[j]) continue outer;
+    return i;
+  }
+  return -1;
+}
+
 // ---- detect the target from firmware already on the board ----
 // ELRS appends a config block after the firmware: product_name(128) + lua_name(16) +
 // defines JSON(512) + layout(2048). Parse product_name + domain and match a known target.
@@ -155,6 +165,15 @@ async function detectTarget() {
   setBusy(true);
   try {
     setStatus("reading the board…");
+
+    // Bootloader @0x1000: the custom slot-switch build contains a unique "slot_switch"
+    // log tag the stock bootloader doesn't. Read the bootloader region (up to the
+    // partition table @0x8000) and look for it.
+    try {
+      const boot = await readFlashBytes(0x1000, 0x7000);
+      if (boot) mm({ type: "bootloader", value: bytesIndexOf(boot, "slot_switch") >= 0 ? "custom" : "stock" });
+    } catch (_) { /* leave bootloader state unknown */ }
+
     const active = await readActiveSlot();
     const addr = { 0: APP0_ADDR, 1: APP1_ADDR };
     const cfg = {};
