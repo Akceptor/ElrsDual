@@ -76,6 +76,17 @@ document.getElementById("connect").addEventListener("click", async () => {
   setConnUI(false);
   try {
     const port = await navigator.serial.requestPort();
+    // EdgeTX radios expose an STM32 USB CDC (VID 0x0483), not an ESP. esptool can't sync
+    // with it (it would hang at "Connecting…"). Internal modules need EdgeTX passthrough
+    // or WiFi — neither of which this direct-serial tool does.
+    const info = (port.getInfo && port.getInfo()) || {};
+    if (info.usbVendorId === 0x0483) {
+      log("That port is an STM32 USB VCP (0x0483) — looks like an EdgeTX radio, not an ESP. " +
+          "The internal ELRS module can't be flashed directly over USB here. Use EdgeTX " +
+          "passthrough (official ELRS Configurator) or flash the module over WiFi / its Lua menu. " +
+          "Direct USB flashing works for ESP boards with their own USB-serial (RX, external modules, dev boards).");
+      return;
+    }
     const baud = parseInt(document.getElementById("baud").value, 10) || 460800;
     const t = new Transport(port, true);
     const loader = new ESPLoader({ transport: t, baudrate: baud, terminal, debugLogging: false });
