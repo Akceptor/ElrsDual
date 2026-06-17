@@ -61,6 +61,9 @@
   .step-desc { color:var(--muted); font-size:.9rem; margin:.2rem 0 .9rem; }
 
   .field { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; margin:.5rem 0; }
+  .form .field { margin:.4rem 0; }
+  .form label.lbl { width:118px; flex:0 0 auto; }
+  .form .field select, .form .field input[type=text] { flex:1 1 auto; max-width:360px; }
   label.lbl { color:var(--muted); font-size:.9rem; }
   select, input[type=text] {
     font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); }
@@ -72,7 +75,9 @@
   button:hover { border-color:var(--accent); }
   button:disabled { opacity:.5; cursor:not-allowed; }
   .btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  .btn-lg { padding:11px 28px; font-size:1rem; }
   .btn-row { display:flex; flex-wrap:wrap; gap:8px; margin:.5rem 0; }
+  .getrow { display:flex; flex-direction:column; align-items:center; gap:6px; margin:1rem 0 .2rem; }
 
   .info { background:var(--infobg); color:var(--infoink); border:1px solid var(--info-line);
           border-radius:9px; padding:10px 12px; font-size:.86rem; margin:.6rem 0; }
@@ -101,25 +106,29 @@
                text-decoration:none; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.18); transition:filter .15s; }
   .explainer:hover { filter:brightness(1.08); }
 
-  /* flash-memory map */
+  /* flash-memory map — horizontal bar */
   .mm-cap { color:var(--muted); font-size:.8rem; margin:.1rem 0 .8rem; }
-  .mm { display:flex; flex-direction:column; gap:6px; }
-  .mm-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; border:1px solid var(--line);
-            border-radius:9px; padding:8px 11px; background:var(--chip); }
-  .mm-row .mm-addr { font-family:ui-monospace,Menlo,monospace; font-size:.74rem; color:var(--muted); width:64px; flex:0 0 auto; }
-  .mm-row .mm-name { font-weight:600; font-size:.9rem; }
-  .mm-row .mm-note { color:var(--muted); font-size:.8rem; }
-  .mm-row.info { opacity:.8; }
-  .mm-row.slot { background:var(--card); border-style:solid; padding:11px; }
-  .mm-row.slot.mm-active { border-color:var(--ok); box-shadow:0 0 0 2px color-mix(in srgb, var(--ok) 25%, transparent); }
-  .mm-kv { font-size:.8rem; color:var(--muted); }
+  .mm { display:flex; align-items:stretch; gap:6px; border:1px solid var(--line); border-radius:10px;
+        padding:8px; background:var(--chip); overflow-x:auto; }
+  .mm-cell { border:1px solid var(--chip-line); border-radius:7px; padding:8px 7px; background:var(--card);
+             display:flex; flex-direction:column; align-items:center; justify-content:space-between;
+             gap:6px; min-height:128px; }
+  .mm-cell .mm-addr { font-family:ui-monospace,Menlo,monospace; font-size:.66rem; color:var(--muted); }
+  .mm-vlabel { writing-mode:vertical-rl; transform:rotate(180deg); text-transform:uppercase;
+               font-size:.72rem; font-weight:700; letter-spacing:.05em; white-space:nowrap; flex:1 1 auto; }
+  .mm-cell.narrow { width:42px; flex:0 0 auto; }
+  .mm-cell.free { flex:1 1 auto; min-width:60px; opacity:.7; }
+  .mm-cell.slot { flex:1 1 0; min-width:150px; align-items:flex-start; justify-content:flex-start; gap:3px; }
+  .mm-cell.slot .mm-name { font-weight:700; font-size:.85rem; }
+  .mm-cell.slot.mm-active { border-color:var(--ok); box-shadow:0 0 0 2px color-mix(in srgb, var(--ok) 25%, transparent); }
+  .mm-kv { font-size:.78rem; color:var(--muted); }
   .mm-kv .mm-val { color:var(--ink); }
   .mm-kv .mm-val.set { font-weight:600; }
-  .mm-slotwrap { display:flex; flex-direction:column; gap:2px; flex:1 1 auto; min-width:160px; }
-  .mm-state { font-size:.76rem; font-weight:700; padding:2px 8px; border-radius:999px;
-              background:var(--chip-line); color:var(--ink); }
-  .mm-state.custom { background:var(--accent); color:#fff; }
-  .mm-badge { display:none; font-size:.7rem; font-weight:800; letter-spacing:.04em; padding:2px 8px;
+  .mm-state { font-size:.66rem; font-weight:700; padding:1px 6px; border-radius:999px;
+              background:var(--chip-line); color:var(--ink); writing-mode:horizontal-tb; }
+  #mm-cell-boot.custom { border-color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+  #mm-cell-boot.custom .mm-state { background:var(--accent); color:#fff; }
+  .mm-badge { display:none; font-size:.62rem; font-weight:800; letter-spacing:.04em; padding:1px 6px;
               border-radius:999px; background:var(--ok); color:#fff; }
   .mm-badge.show { display:inline-block; }
 </style>
@@ -144,7 +153,6 @@
 
   <!-- video + join -->
   <div class="media">
-    <h2 data-i18n="video_h">How it works (video)</h2>
     <div class="video">
       <iframe src="https://www.youtube.com/embed/s7KWTgMyGEs" title="ELRS Dual-OTA Flasher"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -162,46 +170,38 @@
     <div class="step-head"><span class="badge tool">▤</span><h2 data-i18n="mm_title">ESP32 flash map</h2></div>
     <p class="mm-cap" data-i18n="mm_caption">“On board / active” reflect what you do in this session (and Read active); the tool doesn’t auto-read the chip.</p>
     <div class="mm">
-      <div class="mm-row">
+      <div class="mm-cell narrow" id="mm-cell-boot">
+        <span class="mm-vlabel" data-i18n="mm_bootloader">Bootloader</span>
         <span class="mm-addr">0x1000</span>
-        <span class="mm-name" data-i18n="mm_bootloader">Bootloader</span>
         <span id="mm-bootloader-state" class="mm-state" data-i18n="mm_unknown">—</span>
       </div>
-      <div class="mm-row info">
+      <div class="mm-cell narrow">
+        <span class="mm-vlabel" data-i18n="mm_parttable">Partition table</span>
         <span class="mm-addr">0x8000</span>
-        <span class="mm-name" data-i18n="mm_parttable">Partition table</span>
       </div>
-      <div class="mm-row info">
+      <div class="mm-cell narrow" title="NVS — your saved settings, left untouched">
+        <span class="mm-vlabel" data-i18n="mm_nvs">NVS settings</span>
         <span class="mm-addr">0x9000</span>
-        <span class="mm-name" data-i18n="mm_nvs">NVS settings</span>
-        <span class="mm-note" data-i18n="mm_nvs_note">your saved settings — left untouched</span>
       </div>
-      <div class="mm-row info">
+      <div class="mm-cell narrow" title="OTA data — which slot boots">
+        <span class="mm-vlabel" data-i18n="mm_otadata">OTA data</span>
         <span class="mm-addr">0xe000</span>
-        <span class="mm-name" data-i18n="mm_otadata">OTA data</span>
-        <span class="mm-note" data-i18n="mm_otadata_note">which slot boots</span>
       </div>
-      <div class="mm-row slot" id="mm-row-0">
+      <div class="mm-cell slot" id="mm-row-0">
+        <span class="mm-name">app0 · v3.x <span id="mm-badge-0" class="mm-badge" data-i18n="mm_active">ACTIVE</span></span>
         <span class="mm-addr">0x10000</span>
-        <div class="mm-slotwrap">
-          <span class="mm-name">app0 (v3.x)</span>
-          <span class="mm-kv"><span data-i18n="mm_staged">staged:</span> <span id="mm-staged-0" class="mm-val">—</span></span>
-          <span class="mm-kv"><span data-i18n="mm_onboard">on board:</span> <span id="mm-board-0" class="mm-val">—</span></span>
-        </div>
-        <span id="mm-badge-0" class="mm-badge" data-i18n="mm_active">ACTIVE</span>
+        <span class="mm-kv"><span data-i18n="mm_staged">staged:</span> <span id="mm-staged-0" class="mm-val">—</span></span>
+        <span class="mm-kv"><span data-i18n="mm_onboard">on board:</span> <span id="mm-board-0" class="mm-val">—</span></span>
       </div>
-      <div class="mm-row slot" id="mm-row-1">
+      <div class="mm-cell slot" id="mm-row-1">
+        <span class="mm-name">app1 · v4.x <span id="mm-badge-1" class="mm-badge" data-i18n="mm_active">ACTIVE</span></span>
         <span class="mm-addr">0x1F0000</span>
-        <div class="mm-slotwrap">
-          <span class="mm-name">app1 (v4.x)</span>
-          <span class="mm-kv"><span data-i18n="mm_staged">staged:</span> <span id="mm-staged-1" class="mm-val">—</span></span>
-          <span class="mm-kv"><span data-i18n="mm_onboard">on board:</span> <span id="mm-board-1" class="mm-val">—</span></span>
-        </div>
-        <span id="mm-badge-1" class="mm-badge" data-i18n="mm_active">ACTIVE</span>
+        <span class="mm-kv"><span data-i18n="mm_staged">staged:</span> <span id="mm-staged-1" class="mm-val">—</span></span>
+        <span class="mm-kv"><span data-i18n="mm_onboard">on board:</span> <span id="mm-board-1" class="mm-val">—</span></span>
       </div>
-      <div class="mm-row info">
+      <div class="mm-cell free">
+        <span class="mm-vlabel" data-i18n="mm_spiffs">SPIFFS / filesystem</span>
         <span class="mm-addr">0x3D0000</span>
-        <span class="mm-name" data-i18n="mm_spiffs">SPIFFS / filesystem</span>
       </div>
     </div>
   </section>
@@ -209,27 +209,25 @@
   <!-- STEP 1 — configure & stage -->
   <section class="step" id="build-section">
     <div class="step-head"><span class="badge">1</span><h2 data-i18n="step1_h">Configure firmware</h2></div>
-    <p class="step-desc" data-i18n-html="step1_desc">Pick a version + your board, set the region and (optionally) a bind phrase. It downloads the matching pre-built firmware and personalises it <b>in your browser</b> (the bind phrase never leaves this page). No GitHub account or token needed.</p>
+    <p class="step-desc" data-i18n-html="step1_desc">Pick a version + your board, set the region and (optionally) a bind phrase. It downloads the matching pre-built firmware and personalises it <b>in your browser</b> (the bind phrase never leaves this page).</p>
 
-    <div class="field">
-      <label class="lbl" for="bld-version" data-i18n="lbl_version">Version</label>
-      <select id="bld-version"></select>
-      <label class="lbl" for="bld-target" data-i18n="lbl_target">Target</label>
-      <select id="bld-target"></select>
+    <div class="form">
+      <div class="field"><label class="lbl" for="bld-version" data-i18n="lbl_version">Version</label>
+        <select id="bld-version"></select></div>
+      <div class="field"><label class="lbl" for="bld-target" data-i18n="lbl_target">Target</label>
+        <select id="bld-target"></select></div>
+      <div class="field"><label class="lbl" for="bld-domain" data-i18n="lbl_domain">Region/domain</label>
+        <select id="bld-domain"></select></div>
+      <div class="field"><label class="lbl" for="bld-phrase" data-i18n="lbl_phrase">Bind phrase</label>
+        <input type="text" id="bld-phrase" data-i18n-ph="ph_phrase" placeholder="optional — stays local"/></div>
+      <div class="field"><label class="lbl" for="bld-slot" data-i18n="lbl_slot">Stage into slot</label>
+        <select id="bld-slot">
+          <option value="1">app1 (v4.x)</option>
+          <option value="0">app0 (v3.x)</option>
+        </select></div>
     </div>
-    <div class="field">
-      <label class="lbl" for="bld-domain" data-i18n="lbl_domain">Region/domain</label>
-      <select id="bld-domain"></select>
-      <label class="lbl" for="bld-phrase" data-i18n="lbl_phrase">Bind phrase</label>
-      <input type="text" id="bld-phrase" data-i18n-ph="ph_phrase" placeholder="optional — stays local"/>
-    </div>
-    <div class="field">
-      <label class="lbl" for="bld-slot" data-i18n="lbl_slot">Stage into slot</label>
-      <select id="bld-slot">
-        <option value="1">app1 (v4.x)</option>
-        <option value="0">app0 (v3.x)</option>
-      </select>
-      <button id="bld-build" class="btn-primary" data-i18n="btn_getstage">Get &amp; stage</button>
+    <div class="getrow">
+      <button id="bld-build" class="btn-primary btn-lg" data-i18n="btn_getstage">Get &amp; stage</button>
       <span id="bld-status" class="status"></span>
     </div>
 
