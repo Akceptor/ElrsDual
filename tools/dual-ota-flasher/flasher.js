@@ -12,13 +12,16 @@ let esploader = null;
 let viaPassthrough = false;   // connected through an EdgeTX radio bridge?
 
 const logEl = document.getElementById("log");
-export function log(msg) { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; }
+// Empty log shows a Ukrainian-flag backdrop; reverts to the terminal once anything is logged.
+function logFlag(on) { logEl.classList.toggle("flag", on); }
+export function log(msg) { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; logFlag(false); }
 
 const terminal = {
-  clean() { logEl.textContent = ""; },
+  clean() { logEl.textContent = ""; logFlag(true); },
   writeLine(data) { log(data); },
-  write(data) { logEl.textContent += data; logEl.scrollTop = logEl.scrollHeight; },
+  write(data) { logEl.textContent += data; logEl.scrollTop = logEl.scrollHeight; logFlag(false); },
 };
+logFlag(!logEl.textContent);
 
 const ACTION_IDS = ["connect", "detect", "flash", "flash0", "flash1", "read0", "read1", "active", "setslot", "flashboot",
   "bld-build", "bld-flash-staged-0", "bld-flash-staged-1", "bld-flash-staged-both"];
