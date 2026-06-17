@@ -123,15 +123,16 @@ document.getElementById("flash1").addEventListener("click", async () => {
 // Full provision from raw bytes: bootloader + partition table + otadata (boot app0) +
 // both app slots. Use for a fresh/stock board that doesn't yet have the dual-OTA layout.
 // Shared by the local-file "Flash both slots" button and the staged "Provision both".
-export async function flashFullProvision(app0Data, app1Data) {
+export async function flashFullProvision(app0Data, app1Data, useSlotSwitch = false) {
   if (!esploader) { log("Connect first."); return false; }
   if (!app0Data || !app1Data) { log("Need both a v3.x (app0) and v4.x (app1) image."); return false; }
   setBusy(true);
   let ok = false;
   try {
-    log("Loading bundled boot blobs…");
+    const bootName = useSlotSwitch ? "bootloader-slotswitch.bin" : "bootloader.bin";
+    log("Loading bundled boot blobs (" + bootName + ")…");
     const [bootloader, partitions, bootApp0] = await Promise.all([
-      fetchBin("bootloader.bin"), fetchBin("partitions.bin"), fetchBin("boot_app0.bin"),
+      fetchBin(bootName), fetchBin("partitions.bin"), fetchBin("boot_app0.bin"),
     ]);
     const fileArray = [
       { data: bootloader, address: 0x1000 },

@@ -108,12 +108,13 @@ async function flashStaged(slot) {
 async function provisionBothStaged() {
   if (!staged[0] || !staged[1]) { setStatus("stage BOTH app0 (v3) and app1 (v4) first"); return; }
   if (!isConnected()) { setStatus("Connect to the board first"); return; }
-  const ok = await flashFullProvision(staged[0].bytes, staged[1].bytes);
+  const useSlotSwitch = $("bld-bootsw")?.checked ?? true;
+  const ok = await flashFullProvision(staged[0].bytes, staged[1].bytes, useSlotSwitch);
   if (ok) {
     mm({ type: "flashed", slot: 0, label: staged[0].label.split(" · ").slice(0, 2).join(" · ") });
     mm({ type: "flashed", slot: 1, label: staged[1].label.split(" · ").slice(0, 2).join(" · ") });
     mm({ type: "active", slot: 0 });
-    mm({ type: "bootloader", value: "stock" });
+    mm({ type: "bootloader", value: useSlotSwitch ? "custom" : "stock" });
   }
 }
 

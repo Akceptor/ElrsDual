@@ -95,6 +95,11 @@
   #log { background:#0b0f17; color:#7ee787; padding:12px; border-radius:10px; height:200px; overflow:auto;
          white-space:pre-wrap; font-family:ui-monospace,Menlo,monospace; font-size:.8rem; margin-top:8px; }
   .tools-head { font-size:.8rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:26px 0 10px; }
+  .chk { display:flex; align-items:center; gap:8px; font-size:.88rem; color:var(--ink); margin:.5rem 0; }
+  .explainer { display:block; width:100%; text-align:center; margin:18px 0 0; padding:13px 16px;
+               background:linear-gradient(135deg,var(--accent),#7c3aed); color:#fff; font-weight:700;
+               text-decoration:none; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.18); transition:filter .15s; }
+  .explainer:hover { filter:brightness(1.08); }
 
   /* flash-memory map */
   .mm-cap { color:var(--muted); font-size:.8rem; margin:.1rem 0 .8rem; }
@@ -262,6 +267,8 @@
       <div class="group">
         <h3 data-i18n="grp_cloud_h">Flash the firmware you staged (from the cloud)</h3>
         <small data-i18n="grp_cloud_small">Use these after Step 1.</small>
+        <label class="chk"><input type="checkbox" id="bld-bootsw" checked/>
+          <span data-i18n="use_slotsw">Install slot-switch bootloader (3 power-cycles switch slots)</span></label>
         <div class="btn-row">
           <button id="bld-flash-staged-both" class="btn-primary" data-i18n="btn_provision_both">Provision both slots (fresh board)</button>
           <button id="bld-flash-staged-0" data-i18n="btn_update0">Update app0 (v3.x) in place</button>
@@ -276,7 +283,7 @@
       </div>
 
       <details class="adv">
-        <summary data-i18n-html="adv_local_sum">Advanced — flash your own local <code>.bin</code> files</summary>
+        <summary>📂 <span data-i18n-html="adv_local_sum">Advanced — flash your own local <code>.bin</code> files</span></summary>
         <div class="adv-body">
           <div class="field"><span data-i18n="lbl_v3file">v3.x image (→ app0):</span> <input type="file" id="v3file" accept=".bin"/></div>
           <div class="field"><span data-i18n="lbl_v4file">v4.x image (→ app1):</span> <input type="file" id="v4file" accept=".bin"/></div>
@@ -290,7 +297,7 @@
       </details>
 
       <details class="adv">
-        <summary data-i18n="adv_read_sum">Read firmware back from a slot</summary>
+        <summary>📥 <span data-i18n="adv_read_sum">Read firmware back from a slot</span></summary>
         <div class="adv-body">
           <div class="btn-row">
             <button id="read0" data-i18n="btn_read0">Read app0 (v3.x)</button>
@@ -327,6 +334,9 @@
 
   <h2 style="font-size:1rem;margin:24px 0 0" data-i18n="log">Log</h2>
   <pre id="log"></pre>
+
+  <a class="explainer" href="https://youtu.be/NJ21E1bgmrA" target="_blank" rel="noopener"
+     data-i18n="explainer">🎬  Watch the full video explainer</a>
 
   <script>
     // Theme picker wiring (no module needed).
