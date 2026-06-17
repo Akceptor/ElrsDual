@@ -2,7 +2,7 @@ name: Flasher Pages
 on:
   workflow_dispatch:
   push:
-    branches: [dual-ota-builder]
+    branches: [master]
     paths: ["tools/dual-ota-flasher/**"]
 
 permissions:

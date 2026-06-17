@@ -5,7 +5,7 @@ export const BUILD_WORKFLOW = "flasher-build.yml";
 // Branch that HOSTS the workflow file — this is the ref we dispatch (workflow_dispatch
 // requires the file to exist on the dispatched ref). The version branch to *compile* is
 // passed separately as the checkout_ref input. Set to your default branch after merge.
-export const WORKFLOW_REF = "dual-ota-builder";
+export const WORKFLOW_REF = "master";
 
 // branch label shown in UI -> git ref the workflow checks out
 export const BRANCHES = {
