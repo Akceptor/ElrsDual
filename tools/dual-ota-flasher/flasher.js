@@ -1,4 +1,5 @@
 import { ESPLoader, Transport } from "./esptool-bundle.js";
+import { etxPassthrough } from "./passthrough.js";
 
 const APP0_ADDR = 0x10000;
 const APP1_ADDR = 0x1F0000;
@@ -8,6 +9,7 @@ const OTADATA_SIZE = 0x2000;
 
 let transport = null;
 let esploader = null;
+let viaPassthrough = false;   // connected through an EdgeTX radio bridge?
 
 const logEl = document.getElementById("log");
 export function log(msg) { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; }
@@ -35,6 +37,11 @@ export function setBusy(busy) {
 // already held low), which on these UART adapters doesn't actually cycle the chip — so the
 // board never reboots. Do the full pulse ourselves: GPIO0 high (boot app), EN low, release.
 async function hardReboot() {
+  if (viaPassthrough) {
+    // RTS/DTR here toggle the radio's VCP, not the module — can't reset it from here.
+    log("Flashed via EdgeTX passthrough — power-cycle the radio to run the new firmware.");
+    return;
+  }
   try {
     await transport.setDTR(false);   // GPIO0 high → run the app, not the bootloader
     await transport.setRTS(true);    // EN low → assert reset
@@ -65,6 +72,7 @@ async function disconnect() {
   try { await transport?.disconnect(); } catch (_) {}
   esploader = null;
   transport = null;
+  viaPassthrough = false;
   setConnUI(false);
   log("Disconnected.");
 }
@@ -76,20 +84,23 @@ document.getElementById("connect").addEventListener("click", async () => {
   setConnUI(false);
   try {
     const port = await navigator.serial.requestPort();
-    // EdgeTX radios expose an STM32 USB CDC (VID 0x0483), not an ESP. esptool can't sync
-    // with it (it would hang at "Connecting…"). Internal modules need EdgeTX passthrough
-    // or WiFi — neither of which this direct-serial tool does.
-    const info = (port.getInfo && port.getInfo()) || {};
-    if (info.usbVendorId === 0x0483) {
-      log("That port is an STM32 USB VCP (0x0483) — looks like an EdgeTX radio, not an ESP. " +
-          "The internal ELRS module can't be flashed directly over USB here. Use EdgeTX " +
-          "passthrough (official ELRS Configurator) or flash the module over WiFi / its Lua menu. " +
-          "Direct USB flashing works for ESP boards with their own USB-serial (RX, external modules, dev boards).");
-      return;
-    }
     const baud = parseInt(document.getElementById("baud").value, 10) || 460800;
+
+    // EdgeTX radios expose an STM32 USB CDC (VID 0x0483), not an ESP directly. Run EdgeTX
+    // passthrough to bridge the radio's UART to the internal module (held in bootloader),
+    // then talk esptool over the same port. The bridge baud is fixed, so pin esptool's
+    // connect/stub baud to it (romBaudrate = baud) to avoid a mid-stream baud change.
+    const info = (port.getInfo && port.getInfo()) || {};
+    const isRadio = info.usbVendorId === 0x0483;
+    if (isRadio) {
+      log("EdgeTX radio (STM32 VCP) — initialising passthrough to the internal module @ " + baud + "…");
+      await etxPassthrough(port, baud, log);
+      log("Passthrough ready. Syncing esptool with the module…");
+    }
+
     const t = new Transport(port, true);
     const loader = new ESPLoader({ transport: t, baudrate: baud, terminal, debugLogging: false });
+    if (isRadio) loader.romBaudrate = baud;
     const chip = await loader.main();
     if (!loader.chip) throw new Error("chip not detected — hold BOOT and retry");
 
@@ -117,7 +128,9 @@ document.getElementById("connect").addEventListener("click", async () => {
 
     transport = t;
     esploader = loader;
-    log("Connected: " + chip + "   [" + chipName + ", " + (mb ? mb + " MB flash" : "flash size unknown") + "]");
+    viaPassthrough = isRadio;
+    log("Connected: " + chip + "   [" + chipName + ", " + (mb ? mb + " MB flash" : "flash size unknown") +
+        (isRadio ? ", via EdgeTX passthrough" : "") + "]");
     setConnUI(true);
   } catch (e) {
     esploader = null;
