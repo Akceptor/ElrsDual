@@ -11,7 +11,7 @@ on:
         required: true
         default: "both"
         type: choice
-        options: ["both", "v4", "v3.6.3"]
+        options: ["both", "v4.0.1", "v3.6.3"]
   push:
     branches: ["lua-slot/v4", "lua-slot/v3.6.3"]
 
@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: ["v4", "v3.6.3"]
+        version: ["v4.0.1", "v3.6.3"]
         env:
           - Unified_ESP32_2400_TX_via_UART
           - Unified_ESP32_2400_RX_via_UART
@@ -38,7 +38,7 @@ jobs:
         run: |
           WANT="${{ inputs.version }}"
           case "${{ github.ref }}" in
-            refs/heads/lua-slot/v4)     PUSHED="v4" ;;
+            refs/heads/lua-slot/v4)     PUSHED="v4.0.1" ;;
             refs/heads/lua-slot/v3.6.3) PUSHED="v3.6.3" ;;
             *)                          PUSHED="" ;;
           esac
@@ -55,7 +55,7 @@ jobs:
         id: map
         run: |
           case "${{ matrix.version }}" in
-            v4)     echo "ref=lua-slot/v4" >> "$GITHUB_OUTPUT" ;;
+            v4.0.1) echo "ref=lua-slot/v4" >> "$GITHUB_OUTPUT" ;;
             v3.6.3) echo "ref=lua-slot/v3.6.3" >> "$GITHUB_OUTPUT" ;;
           esac
 

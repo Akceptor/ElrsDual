@@ -16,13 +16,33 @@ let esp32 = [];
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (m) => { $("bld-status").textContent = m; };
+const mm = (detail) => document.dispatchEvent(new CustomEvent("memmap", { detail }));
+
+// Group label for the dropdown: module (TX/RX) then band (2.4 GHz / 900 MHz / LR1121).
+function groupLabel(dev) {
+  const mod = dev.firmware.includes("_TX") ? "TX" : "RX";
+  const band = /_2400_/.test(dev.firmware) ? "2.4 GHz" : /_900_/.test(dev.firmware) ? "900 MHz" : "LR1121";
+  return `${mod} — ${band}`;
+}
+const GROUP_ORDER = ["TX — 2.4 GHz", "TX — 900 MHz", "TX — LR1121", "RX — 2.4 GHz", "RX — 900 MHz", "RX — LR1121"];
 
 async function loadTargets() {
   setStatus("loading targets…");
   const res = await fetch(TARGETS_RAW("targets.json"));
   if (!res.ok) throw new Error(`targets.json HTTP ${res.status}`);
   esp32 = filterEsp32Targets(flattenTargets(await res.json())).sort((a, b) => a.id.localeCompare(b.id));
-  $("bld-target").innerHTML = esp32.map((t) => `<option value="${t.id}">${t.id}</option>`).join("");
+
+  const groups = new Map();
+  for (const t of esp32) {
+    const g = groupLabel(t.dev);
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(t);
+  }
+  const ordered = [...GROUP_ORDER.filter((g) => groups.has(g)), ...[...groups.keys()].filter((g) => !GROUP_ORDER.includes(g))];
+  $("bld-target").innerHTML = ordered.map((g) =>
+    `<optgroup label="${g}">` +
+    groups.get(g).map((t) => `<option value="${t.id}">${t.id}</option>`).join("") +
+    `</optgroup>`).join("");
   setStatus(`${esp32.length} ESP32 targets`);
 }
 
@@ -65,6 +85,7 @@ async function prepareAndStage() {
 
     staged[slot] = { bytes: configured, label: `${versionLabel} · ${targetId} · ${domain}` };
     renderStaged();
+    mm({ type: "staged", slot, label: `${versionLabel} · ${targetId}` });
     setStatus("staged — Connect, then Flash staged");
     log(`Staged ${staged[slot].label} → ${slot === 0 ? "app0" : "app1"} (${configured.length} bytes)`);
   } catch (e) {
@@ -78,7 +99,8 @@ async function prepareAndStage() {
 async function flashStaged(slot) {
   if (!staged[slot]) { setStatus(`nothing staged for app${slot}`); return; }
   if (!isConnected()) { setStatus("Connect to the board first"); return; }
-  await flashData(staged[slot].bytes, slot === 0 ? APP0_ADDR : APP1_ADDR, `app${slot} (staged)`);
+  const ok = await flashData(staged[slot].bytes, slot === 0 ? APP0_ADDR : APP1_ADDR, `app${slot} (staged)`);
+  if (ok) mm({ type: "flashed", slot, label: staged[slot].label.split(" · ").slice(0, 2).join(" · ") });
 }
 
 // Full provision (bootloader + partitions + otadata + both apps) from the staged bins.
@@ -86,7 +108,14 @@ async function flashStaged(slot) {
 async function provisionBothStaged() {
   if (!staged[0] || !staged[1]) { setStatus("stage BOTH app0 (v3) and app1 (v4) first"); return; }
   if (!isConnected()) { setStatus("Connect to the board first"); return; }
-  await flashFullProvision(staged[0].bytes, staged[1].bytes);
+  const useSlotSwitch = $("bld-bootsw")?.checked ?? true;
+  const ok = await flashFullProvision(staged[0].bytes, staged[1].bytes, useSlotSwitch);
+  if (ok) {
+    mm({ type: "flashed", slot: 0, label: staged[0].label.split(" · ").slice(0, 2).join(" · ") });
+    mm({ type: "flashed", slot: 1, label: staged[1].label.split(" · ").slice(0, 2).join(" · ") });
+    mm({ type: "active", slot: 0 });
+    mm({ type: "bootloader", value: useSlotSwitch ? "custom" : "stock" });
+  }
 }
 
 function init() {

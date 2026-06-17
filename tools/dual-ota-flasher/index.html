@@ -4,22 +4,55 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>ELRS Dual-OTA Flasher</title>
+<script>
+  // Set theme before paint to avoid a flash of the wrong theme.
+  (function(){ try { document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || "auto"); } catch(e){} })();
+</script>
 <style>
   :root {
     --bg:#f6f7f9; --card:#fff; --ink:#1c2330; --muted:#5b6675; --line:#e2e6ec;
     --accent:#2563eb; --accent-ink:#fff; --ok:#16a34a; --warnbg:#fef3c7; --warnink:#92400e;
-    --infobg:#eff6ff; --infoink:#1e40af; --radius:12px;
+    --infobg:#eff6ff; --infoink:#1e40af; --info-line:#dbeafe; --chip:#f1f5f9; --chip-line:#cbd5e1;
+    --radius:12px; --yt:#ff0000;
+  }
+  :root[data-theme="dark"] {
+    --bg:#0f1115; --card:#171a21; --ink:#e6e9ef; --muted:#9aa4b2; --line:#2a2f3a;
+    --accent:#3b82f6; --accent-ink:#fff; --ok:#22c55e; --warnbg:#3a2e10; --warnink:#fcd34d;
+    --infobg:#0e1d33; --infoink:#bfdbfe; --info-line:#1e3a5f; --chip:#0c0e12; --chip-line:#2a2f3a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root[data-theme="auto"] {
+      --bg:#0f1115; --card:#171a21; --ink:#e6e9ef; --muted:#9aa4b2; --line:#2a2f3a;
+      --accent:#3b82f6; --accent-ink:#fff; --ok:#22c55e; --warnbg:#3a2e10; --warnink:#fcd34d;
+      --infobg:#0e1d33; --infoink:#bfdbfe; --info-line:#1e3a5f; --chip:#0c0e12; --chip-line:#2a2f3a;
+    }
   }
   * { box-sizing:border-box; }
   body { font-family:system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink);
-         max-width:760px; margin:0 auto; padding:24px 16px 64px; line-height:1.5; }
-  h1 { font-size:1.5rem; margin:0 0 4px; }
-  .lede { color:var(--muted); margin:0 0 20px; }
+         max-width:760px; margin:0 auto; padding:18px 16px 64px; line-height:1.5; }
+  a { color:var(--accent); }
+
+  .topbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+  .topbar h1 { font-size:1.4rem; margin:0; flex:1 1 auto; }
+  .pickers { display:flex; gap:8px; flex:0 0 auto; }
+  .pickers select { font:inherit; padding:5px 8px; border:1px solid var(--line); border-radius:8px;
+                    background:var(--card); color:var(--ink); }
+  .lede { color:var(--muted); margin:0 0 16px; }
   .lede b { color:var(--ink); }
+
+  /* media: video + join button, same width as the content column */
+  .media { margin:0 0 18px; }
+  .media h2 { font-size:.9rem; color:var(--muted); margin:0 0 6px; font-weight:600; }
+  .video { position:relative; width:100%; aspect-ratio:16/9; border-radius:var(--radius);
+           overflow:hidden; border:1px solid var(--line); background:#000; }
+  .video iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  .join { display:block; width:100%; text-align:center; margin-top:10px; padding:12px 16px;
+          background:var(--yt); color:#fff; font-weight:700; text-decoration:none; border-radius:10px;
+          box-shadow:0 1px 3px rgba(0,0,0,.18); transition:filter .15s; }
+  .join:hover { filter:brightness(1.08); }
 
   .step { background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
           padding:18px 20px; margin:0 0 16px; box-shadow:0 1px 2px rgba(16,24,40,.04); }
-  .step.locked { opacity:.55; }
   .step-head { display:flex; align-items:center; gap:10px; margin:0 0 6px; }
   .badge { flex:0 0 auto; width:26px; height:26px; border-radius:50%; background:var(--accent);
            color:var(--accent-ink); font-weight:700; font-size:.85rem; display:grid; place-items:center; }
@@ -30,84 +63,180 @@
   .field { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; margin:.5rem 0; }
   label.lbl { color:var(--muted); font-size:.9rem; }
   select, input[type=text] {
-    font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
-  select { max-width:340px; }
+    font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); }
+  select { max-width:360px; }
   input[type=text] { min-width:180px; }
 
   button { font:inherit; padding:9px 14px; border-radius:9px; border:1px solid var(--line);
-           background:#fff; color:var(--ink); cursor:pointer; margin:0; }
-  button:hover { border-color:#cbd2db; }
+           background:var(--card); color:var(--ink); cursor:pointer; }
+  button:hover { border-color:var(--accent); }
   button:disabled { opacity:.5; cursor:not-allowed; }
   .btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
-  .btn-primary:hover { background:#1d4ed8; }
   .btn-row { display:flex; flex-wrap:wrap; gap:8px; margin:.5rem 0; }
 
-  .info { background:var(--infobg); color:var(--infoink); border:1px solid #dbeafe;
+  .info { background:var(--infobg); color:var(--infoink); border:1px solid var(--info-line);
           border-radius:9px; padding:10px 12px; font-size:.86rem; margin:.6rem 0; }
-  .info b { color:var(--infoink); }
-  .staged { background:#f1f5f9; border:1px dashed #cbd5e1; border-radius:9px;
+  .staged { background:var(--chip); border:1px dashed var(--chip-line); border-radius:9px;
             padding:9px 12px; font-size:.86rem; color:var(--muted); margin:.6rem 0 0; }
   .status { font-size:.86rem; color:var(--muted); }
   .group { border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin:.7rem 0; }
   .group > h3 { font-size:.95rem; margin:0 0 .4rem; }
-  .group small { color:var(--muted); }
+  .group small, .adv-body small { color:var(--muted); }
 
-  details.adv { border:1px solid var(--line); border-radius:10px; padding:0 14px; margin:.7rem 0; background:#fcfdff; }
+  details.adv { border:1px solid var(--line); border-radius:10px; padding:0 14px; margin:.7rem 0; background:var(--card); }
   details.adv > summary { cursor:pointer; padding:11px 0; font-weight:600; font-size:.92rem; list-style:none; }
   details.adv > summary::before { content:"▸ "; color:var(--muted); }
   details.adv[open] > summary::before { content:"▾ "; }
   details.adv > .adv-body { padding:0 0 12px; }
 
-  .warn { background:var(--warnbg); color:var(--warnink); border:1px solid #fde68a;
+  .warn { background:var(--warnbg); color:var(--warnink); border:1px solid var(--chip-line);
           border-radius:9px; padding:10px 12px; }
-  code { background:#eef1f5; padding:1px 5px; border-radius:5px; font-size:.85em; }
+  code { background:var(--chip); padding:1px 5px; border-radius:5px; font-size:.85em; }
   #log { background:#0b0f17; color:#7ee787; padding:12px; border-radius:10px; height:200px; overflow:auto;
          white-space:pre-wrap; font-family:ui-monospace,Menlo,monospace; font-size:.8rem; margin-top:8px; }
-  .tools-head { font-size:.8rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
-                margin:26px 0 10px; }
+  .tools-head { font-size:.8rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:26px 0 10px; }
+  .chk { display:flex; align-items:center; gap:8px; font-size:.88rem; color:var(--ink); margin:.5rem 0; }
+  .explainer { display:block; width:100%; text-align:center; margin:18px 0 0; padding:13px 16px;
+               background:linear-gradient(135deg,var(--accent),#7c3aed); color:#fff; font-weight:700;
+               text-decoration:none; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.18); transition:filter .15s; }
+  .explainer:hover { filter:brightness(1.08); }
+
+  /* flash-memory map */
+  .mm-cap { color:var(--muted); font-size:.8rem; margin:.1rem 0 .8rem; }
+  .mm { display:flex; flex-direction:column; gap:6px; }
+  .mm-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; border:1px solid var(--line);
+            border-radius:9px; padding:8px 11px; background:var(--chip); }
+  .mm-row .mm-addr { font-family:ui-monospace,Menlo,monospace; font-size:.74rem; color:var(--muted); width:64px; flex:0 0 auto; }
+  .mm-row .mm-name { font-weight:600; font-size:.9rem; }
+  .mm-row .mm-note { color:var(--muted); font-size:.8rem; }
+  .mm-row.info { opacity:.8; }
+  .mm-row.slot { background:var(--card); border-style:solid; padding:11px; }
+  .mm-row.slot.mm-active { border-color:var(--ok); box-shadow:0 0 0 2px color-mix(in srgb, var(--ok) 25%, transparent); }
+  .mm-kv { font-size:.8rem; color:var(--muted); }
+  .mm-kv .mm-val { color:var(--ink); }
+  .mm-kv .mm-val.set { font-weight:600; }
+  .mm-slotwrap { display:flex; flex-direction:column; gap:2px; flex:1 1 auto; min-width:160px; }
+  .mm-state { font-size:.76rem; font-weight:700; padding:2px 8px; border-radius:999px;
+              background:var(--chip-line); color:var(--ink); }
+  .mm-state.custom { background:var(--accent); color:#fff; }
+  .mm-badge { display:none; font-size:.7rem; font-weight:800; letter-spacing:.04em; padding:2px 8px;
+              border-radius:999px; background:var(--ok); color:#fff; }
+  .mm-badge.show { display:inline-block; }
 </style>
 </head>
 <body>
-  <h1>ELRS Dual-OTA Flasher</h1>
-  <p class="lede">Put <b>two</b> ELRS firmwares on one ESP32 at once — <b>app0 = v3.x</b> and
-     <b>app1 = v4.x</b> — and switch between them. Chrome or Edge only.</p>
-  <p id="unsupported" class="warn" style="display:none">
-     ⚠️ Web Serial isn’t available in this browser. Use <b>Chrome</b> or <b>Edge</b> over
-     <code>https</code> (or <code>http://localhost</code>).</p>
+  <div class="topbar">
+    <h1>ELRS Dual-OTA Flasher</h1>
+    <div class="pickers">
+      <select id="theme" aria-label="Theme">
+        <option value="auto" data-i18n="theme_auto">Auto</option>
+        <option value="light" data-i18n="theme_light">Light</option>
+        <option value="dark" data-i18n="theme_dark">Dark</option>
+      </select>
+      <select id="lang" aria-label="Language">
+        <option value="en">English</option>
+        <option value="uk">Українська</option>
+      </select>
+    </div>
+  </div>
+
+  <p class="lede" data-i18n-html="lede">Put <b>two</b> ELRS firmwares on one ESP32 at once — <b>app0 = v3.x</b> and <b>app1 = v4.x</b> — and switch between them. Chrome or Edge only.</p>
+
+  <!-- video + join -->
+  <div class="media">
+    <h2 data-i18n="video_h">How it works (video)</h2>
+    <div class="video">
+      <iframe src="https://www.youtube.com/embed/s7KWTgMyGEs" title="ELRS Dual-OTA Flasher"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen></iframe>
+    </div>
+    <a class="join" href="https://www.youtube.com/channel/UCAki0WWEoCPVeu3Juz2L3yQ/join"
+       target="_blank" rel="noopener" data-i18n="join">▶  Join my YouTube channel</a>
+  </div>
+
+  <p id="unsupported" class="warn" style="display:none" data-i18n-html="unsupported">
+     ⚠️ Web Serial isn’t available in this browser. Use <b>Chrome</b> or <b>Edge</b> over <code>https</code> (or <code>http://localhost</code>).</p>
+
+  <!-- flash memory map -->
+  <section class="step">
+    <div class="step-head"><span class="badge tool">▤</span><h2 data-i18n="mm_title">ESP32 flash map</h2></div>
+    <p class="mm-cap" data-i18n="mm_caption">“On board / active” reflect what you do in this session (and Read active); the tool doesn’t auto-read the chip.</p>
+    <div class="mm">
+      <div class="mm-row">
+        <span class="mm-addr">0x1000</span>
+        <span class="mm-name" data-i18n="mm_bootloader">Bootloader</span>
+        <span id="mm-bootloader-state" class="mm-state" data-i18n="mm_unknown">—</span>
+      </div>
+      <div class="mm-row info">
+        <span class="mm-addr">0x8000</span>
+        <span class="mm-name" data-i18n="mm_parttable">Partition table</span>
+      </div>
+      <div class="mm-row info">
+        <span class="mm-addr">0x9000</span>
+        <span class="mm-name" data-i18n="mm_nvs">NVS settings</span>
+        <span class="mm-note" data-i18n="mm_nvs_note">your saved settings — left untouched</span>
+      </div>
+      <div class="mm-row info">
+        <span class="mm-addr">0xe000</span>
+        <span class="mm-name" data-i18n="mm_otadata">OTA data</span>
+        <span class="mm-note" data-i18n="mm_otadata_note">which slot boots</span>
+      </div>
+      <div class="mm-row slot" id="mm-row-0">
+        <span class="mm-addr">0x10000</span>
+        <div class="mm-slotwrap">
+          <span class="mm-name">app0 (v3.x)</span>
+          <span class="mm-kv"><span data-i18n="mm_staged">staged:</span> <span id="mm-staged-0" class="mm-val">—</span></span>
+          <span class="mm-kv"><span data-i18n="mm_onboard">on board:</span> <span id="mm-board-0" class="mm-val">—</span></span>
+        </div>
+        <span id="mm-badge-0" class="mm-badge" data-i18n="mm_active">ACTIVE</span>
+      </div>
+      <div class="mm-row slot" id="mm-row-1">
+        <span class="mm-addr">0x1F0000</span>
+        <div class="mm-slotwrap">
+          <span class="mm-name">app1 (v4.x)</span>
+          <span class="mm-kv"><span data-i18n="mm_staged">staged:</span> <span id="mm-staged-1" class="mm-val">—</span></span>
+          <span class="mm-kv"><span data-i18n="mm_onboard">on board:</span> <span id="mm-board-1" class="mm-val">—</span></span>
+        </div>
+        <span id="mm-badge-1" class="mm-badge" data-i18n="mm_active">ACTIVE</span>
+      </div>
+      <div class="mm-row info">
+        <span class="mm-addr">0x3D0000</span>
+        <span class="mm-name" data-i18n="mm_spiffs">SPIFFS / filesystem</span>
+      </div>
+    </div>
+  </section>
 
   <!-- STEP 1 — configure & stage -->
   <section class="step" id="build-section">
-    <div class="step-head"><span class="badge">1</span><h2>Configure firmware</h2></div>
-    <p class="step-desc">Pick a version + your board, set the region and (optionally) a bind phrase.
-       It downloads the matching pre-built firmware and personalises it <b>in your browser</b>
-       (the bind phrase never leaves this page). No GitHub account or token needed.</p>
+    <div class="step-head"><span class="badge">1</span><h2 data-i18n="step1_h">Configure firmware</h2></div>
+    <p class="step-desc" data-i18n-html="step1_desc">Pick a version + your board, set the region and (optionally) a bind phrase. It downloads the matching pre-built firmware and personalises it <b>in your browser</b> (the bind phrase never leaves this page). No GitHub account or token needed.</p>
 
     <div class="field">
-      <label class="lbl" for="bld-version">Version</label>
+      <label class="lbl" for="bld-version" data-i18n="lbl_version">Version</label>
       <select id="bld-version"></select>
-      <label class="lbl" for="bld-target">Target</label>
+      <label class="lbl" for="bld-target" data-i18n="lbl_target">Target</label>
       <select id="bld-target"></select>
     </div>
     <div class="field">
-      <label class="lbl" for="bld-domain">Region/domain</label>
+      <label class="lbl" for="bld-domain" data-i18n="lbl_domain">Region/domain</label>
       <select id="bld-domain"></select>
-      <label class="lbl" for="bld-phrase">Bind phrase</label>
-      <input type="text" id="bld-phrase" placeholder="optional — stays local"/>
+      <label class="lbl" for="bld-phrase" data-i18n="lbl_phrase">Bind phrase</label>
+      <input type="text" id="bld-phrase" data-i18n-ph="ph_phrase" placeholder="optional — stays local"/>
     </div>
     <div class="field">
-      <label class="lbl" for="bld-slot">Stage into slot</label>
+      <label class="lbl" for="bld-slot" data-i18n="lbl_slot">Stage into slot</label>
       <select id="bld-slot">
         <option value="1">app1 (v4.x)</option>
         <option value="0">app0 (v3.x)</option>
       </select>
-      <button id="bld-build" class="btn-primary">Get &amp; stage</button>
+      <button id="bld-build" class="btn-primary" data-i18n="btn_getstage">Get &amp; stage</button>
       <span id="bld-status" class="status"></span>
     </div>
 
-    <div class="info">
+    <div class="info" data-i18n-html="info1">
       <b>Two slots, kept side by side.</b> Staging v3 into app0 and v4 into app1 does
-      <b>not</b> erase the other — both firmwares live on the board and you choose which one
-      boots (Step 3 → <i>Active slot</i>, or 3 quick power-cycles with the slot-switch
+      <b>not</b> erase the other — both firmwares live on the board and you choose which
+      one boots (Step 3 → <i>Active slot</i>, or 3 quick power-cycles with the slot-switch
       bootloader). Stage one slot to keep the other untouched, or stage <b>both</b> to load
       v3 and v4 together.
     </div>
@@ -116,35 +245,36 @@
 
   <!-- STEP 2 — connect -->
   <section class="step">
-    <div class="step-head"><span class="badge">2</span><h2>Connect your board</h2></div>
-    <p class="step-desc">Plug the board in over USB and connect. Hold <b>BOOT</b> while connecting
-       if it won’t sync. Flashing tools unlock once connected.</p>
+    <div class="step-head"><span class="badge">2</span><h2 data-i18n="step2_h">Connect your board</h2></div>
+    <p class="step-desc" data-i18n-html="step2_desc">Plug the board in over USB and connect. Hold <b>BOOT</b> while connecting if it won’t sync. Flashing tools unlock once connected.</p>
     <div class="field">
-      <label class="lbl" for="baud">Baud</label>
+      <label class="lbl" for="baud" data-i18n="lbl_baud">Baud</label>
       <select id="baud">
         <option value="115200">115200</option>
         <option value="230400">230400</option>
         <option value="460800" selected>460800</option>
         <option value="921600">921600</option>
       </select>
-      <button id="connect" class="btn-primary">Connect</button>
+      <button id="connect" class="btn-primary" data-i18n="btn_connect">Connect</button>
     </div>
   </section>
 
-  <!-- STEP 3 + tools — all require a connection (#controls hidden until connected) -->
-  <div id="controls">
+  <!-- STEP 3 + tools — require a connection (#controls hidden until connected) -->
+  <div id="controls" style="display:none">
     <section class="step">
-      <div class="step-head"><span class="badge">3</span><h2>Flash to the board</h2></div>
+      <div class="step-head"><span class="badge">3</span><h2 data-i18n="step3_h">Flash to the board</h2></div>
 
       <div class="group">
-        <h3>Flash the firmware you staged (from the cloud)</h3>
-        <small>Use these after Step 1.</small>
+        <h3 data-i18n="grp_cloud_h">Flash the firmware you staged (from the cloud)</h3>
+        <small data-i18n="grp_cloud_small">Use these after Step 1.</small>
+        <label class="chk"><input type="checkbox" id="bld-bootsw" checked/>
+          <span data-i18n="use_slotsw">Install slot-switch bootloader (3 power-cycles switch slots)</span></label>
         <div class="btn-row">
-          <button id="bld-flash-staged-both" class="btn-primary">Provision both slots (fresh board)</button>
-          <button id="bld-flash-staged-0">Update app0 (v3.x) in place</button>
-          <button id="bld-flash-staged-1">Update app1 (v4.x) in place</button>
+          <button id="bld-flash-staged-both" class="btn-primary" data-i18n="btn_provision_both">Provision both slots (fresh board)</button>
+          <button id="bld-flash-staged-0" data-i18n="btn_update0">Update app0 (v3.x) in place</button>
+          <button id="bld-flash-staged-1" data-i18n="btn_update1">Update app1 (v4.x) in place</button>
         </div>
-        <div class="info">
+        <div class="info" data-i18n-html="info3">
           <b>Provision both</b> sets up a new/stock board — it writes the bootloader, partition
           table and both slots (needs both v3 and v4 staged), then boots app0.
           <b>Update appN</b> replaces just that one version, leaving the other slot, the
@@ -153,60 +283,75 @@
       </div>
 
       <details class="adv">
-        <summary>Advanced — flash your own local <code>.bin</code> files</summary>
+        <summary>📂 <span data-i18n-html="adv_local_sum">Advanced — flash your own local <code>.bin</code> files</span></summary>
         <div class="adv-body">
-          <div class="field">v3.x image (→ app0): <input type="file" id="v3file" accept=".bin"/></div>
-          <div class="field">v4.x image (→ app1): <input type="file" id="v4file" accept=".bin"/></div>
+          <div class="field"><span data-i18n="lbl_v3file">v3.x image (→ app0):</span> <input type="file" id="v3file" accept=".bin"/></div>
+          <div class="field"><span data-i18n="lbl_v4file">v4.x image (→ app1):</span> <input type="file" id="v4file" accept=".bin"/></div>
           <div class="btn-row">
-            <button id="flash">Flash both slots (full provision)</button>
-            <button id="flash0">Flash app0 only</button>
-            <button id="flash1">Flash app1 only</button>
+            <button id="flash" data-i18n="btn_flash_both">Flash both slots (full provision)</button>
+            <button id="flash0" data-i18n="btn_flash0">Flash app0 only</button>
+            <button id="flash1" data-i18n="btn_flash1">Flash app1 only</button>
           </div>
-          <small>For images you configured yourself with the ELRS Configurator / official web flasher.</small>
+          <small data-i18n="adv_local_small">For images you configured yourself with the ELRS Configurator / official web flasher.</small>
         </div>
       </details>
 
       <details class="adv">
-        <summary>Read firmware back from a slot</summary>
+        <summary>📥 <span data-i18n="adv_read_sum">Read firmware back from a slot</span></summary>
         <div class="adv-body">
           <div class="btn-row">
-            <button id="read0">Read app0 (v3.x)</button>
-            <button id="read1">Read app1 (v4.x)</button>
+            <button id="read0" data-i18n="btn_read0">Read app0 (v3.x)</button>
+            <button id="read1" data-i18n="btn_read1">Read app1 (v4.x)</button>
           </div>
-          <small>Downloads the full slot to a <code>.bin</code> (≈1 min each).</small>
+          <small data-i18n-html="adv_read_small">Downloads the full slot to a <code>.bin</code> (≈1 min each).</small>
         </div>
       </details>
     </section>
 
-    <p class="tools-head">Tools</p>
+    <p class="tools-head" data-i18n="tools">Tools</p>
 
     <section class="step">
-      <div class="step-head"><span class="badge tool">⇄</span><h2>Slot switcher</h2></div>
-      <p class="step-desc">Choose which firmware boots. <i>Read active</i> shows the current one.</p>
+      <div class="step-head"><span class="badge tool">⇄</span><h2 data-i18n="slotsw_h">Slot switcher</h2></div>
+      <p class="step-desc" data-i18n-html="slotsw_desc">Choose which firmware boots. <i>Read active</i> shows the current one.</p>
       <div class="field">
         <label><input type="radio" name="slotsel" value="0"/> app0 (v3.x)</label>
         <label><input type="radio" name="slotsel" value="1"/> app1 (v4.x)</label>
       </div>
       <div class="btn-row">
-        <button id="active">Read active</button>
-        <button id="setslot" class="btn-primary">Set active + reboot</button>
+        <button id="active" data-i18n="btn_readactive">Read active</button>
+        <button id="setslot" class="btn-primary" data-i18n="btn_setslot">Set active + reboot</button>
       </div>
     </section>
 
     <section class="step">
-      <div class="step-head"><span class="badge tool">⚙</span><h2>Slot-switch bootloader</h2></div>
-      <p class="step-desc">Installs a custom second-stage bootloader (to <code>0x1000</code> only;
-         app slots untouched). Then <b>3 quick power-cycles</b> (each off/on within ~2&nbsp;s) flip
-         the active slot — no computer needed. Normal boots wait ~2&nbsp;s. 4&nbsp;MB ESP32 / min_spiffs.</p>
+      <div class="step-head"><span class="badge tool">⚙</span><h2 data-i18n="bootl_h">Slot-switch bootloader</h2></div>
+      <p class="step-desc" data-i18n-html="bootl_desc">Installs a custom second-stage bootloader (to <code>0x1000</code> only; app slots untouched). Then <b>3 quick power-cycles</b> (each off/on within ~2&nbsp;s) flip the active slot — no computer needed. Normal boots wait ~2&nbsp;s. 4&nbsp;MB ESP32 / min_spiffs.</p>
       <div class="btn-row">
-        <button id="flashboot">Flash slot-switch bootloader (0x1000)</button>
+        <button id="flashboot" data-i18n="btn_flashboot">Flash slot-switch bootloader (0x1000)</button>
       </div>
     </section>
   </div>
 
-  <h2 style="font-size:1rem;margin:24px 0 0">Log</h2>
+  <h2 style="font-size:1rem;margin:24px 0 0" data-i18n="log">Log</h2>
   <pre id="log"></pre>
 
+  <a class="explainer" href="https://youtu.be/NJ21E1bgmrA" target="_blank" rel="noopener"
+     data-i18n="explainer">🎬  Watch the full video explainer</a>
+
+  <script>
+    // Theme picker wiring (no module needed).
+    (function(){
+      var sel=document.getElementById("theme");
+      if(!sel) return;
+      sel.value=document.documentElement.getAttribute("data-theme")||"auto";
+      sel.addEventListener("change",function(){
+        document.documentElement.setAttribute("data-theme",sel.value);
+        try{ localStorage.setItem("theme",sel.value); }catch(e){}
+      });
+    })();
+  </script>
+  <script type="module" src="i18n.js"></script>
+  <script type="module" src="memmap.js"></script>
   <script type="module" src="flasher.js"></script>
   <script type="module" src="builder.js"></script>
 </body>
