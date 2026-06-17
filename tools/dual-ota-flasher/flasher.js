@@ -18,7 +18,8 @@ const terminal = {
   write(data) { logEl.textContent += data; logEl.scrollTop = logEl.scrollHeight; },
 };
 
-const ACTION_IDS = ["connect", "flash", "flash0", "flash1", "read0", "read1", "active", "setslot", "flashboot"];
+const ACTION_IDS = ["connect", "flash", "flash0", "flash1", "read0", "read1", "active", "setslot", "flashboot",
+  "bld-build", "bld-flash-staged-0", "bld-flash-staged-1", "bld-flash-staged-both"];
 export function isConnected() { return esploader !== null; }
 export { APP0_ADDR, APP1_ADDR };
 export function setBusy(busy) {
