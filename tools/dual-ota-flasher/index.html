@@ -39,8 +39,10 @@
   .icon-toggle:hover { border-color:var(--accent); }
   #theme-toggle { justify-self:start; font-size:1.1rem; }
   #lang-toggle { justify-self:end; font-weight:600; }
-  .lede { color:var(--muted); margin:0 0 16px; }
+  .lede { color:var(--muted); margin:0 0 4px; }
   .lede b { color:var(--ink); }
+  /* build stamp: same colour as the background so it's invisible; select to reveal */
+  .build { color:var(--bg); font-size:.62rem; line-height:1; margin:0 0 16px; user-select:all; -webkit-user-select:all; }
 
   /* media: video + join button, same width as the content column */
   .media { margin:0 0 18px; }
@@ -150,6 +152,8 @@
   </div>
 
   <p class="lede" data-i18n-html="lede">Put <b>two</b> ELRS firmwares on one ESP32 at once — <b>app0 = v3.x</b> and <b>app1 = v4.x</b> — and switch between them. Chrome or Edge only.</p>
+  <!-- Hidden build stamp (same colour as the background); select the line to reveal it. -->
+  <div class="build" id="build">build __BUILD__</div>
 
   <!-- video + join -->
   <div class="media">

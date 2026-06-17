@@ -20,6 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Stamp build version (commit + date) into the page
+        run: sed -i "s/__BUILD__/${GITHUB_SHA::7} $(date -u +%Y-%m-%d)/" tools/dual-ota-flasher/index.html
       - uses: actions/configure-pages@v5
         with: { enablement: true }   # create/enable the Pages site if it doesn't exist yet
       - uses: actions/upload-pages-artifact@v3
