@@ -47,6 +47,11 @@
 
 #include "config.h"
 
+#if defined(PLATFORM_ESP32)
+#include "esp_ota_ops.h"
+#include "esp_partition.h"
+#endif
+
 #if defined(RADIO_LR1121)
 #include "lr1121.h"
 #endif
@@ -103,6 +108,22 @@ void setWifiUpdateMode()
   InBindingMode = false;
   setConnectionState(wifiUpdate);
 }
+
+#if defined(PLATFORM_ESP32)
+void setSwitchFirmwareSlot()
+{
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  esp_partition_subtype_t targetSub =
+      (running && running->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_0)
+          ? ESP_PARTITION_SUBTYPE_APP_OTA_1
+          : ESP_PARTITION_SUBTYPE_APP_OTA_0;
+  const esp_partition_t *target =
+      esp_partition_find_first(ESP_PARTITION_TYPE_APP, targetSub, NULL);
+  if (target)
+    esp_ota_set_boot_partition(target);
+  scheduleRebootTime(400);
+}
+#endif
 
 /** Is this an IP? */
 static boolean isIp(const String& str)
@@ -1178,6 +1199,46 @@ static void addCaptivePortalHandlers()
         server.on(uri, WebUpdateHandleRoot);
 }
 
+#if defined(PLATFORM_ESP32)
+static int getRunningSlot()
+{
+    const esp_partition_t *r = esp_ota_get_running_partition();
+    return (r != nullptr && r->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) ? 1 : 0;
+}
+
+static void WebGetSlot(AsyncWebServerRequest *request)
+{
+    char buf[24];
+    snprintf(buf, sizeof(buf), "{\"running\":%d}", getRunningSlot());
+    request->send(200, "application/json", buf);
+}
+
+static void WebSetSlot(AsyncWebServerRequest *request, JsonVariant &json)
+{
+    int slot = json["slot"] | -1;
+    if (slot != 0 && slot != 1)
+    {
+        request->send(400, "application/json", "{\"status\":\"bad-slot\"}");
+        return;
+    }
+    if (slot == getRunningSlot())
+    {
+        request->send(200, "application/json", "{\"status\":\"current\"}");
+        return;
+    }
+    esp_partition_subtype_t sub = (slot == 1) ? ESP_PARTITION_SUBTYPE_APP_OTA_1
+                                              : ESP_PARTITION_SUBTYPE_APP_OTA_0;
+    const esp_partition_t *target = esp_partition_find_first(ESP_PARTITION_TYPE_APP, sub, NULL);
+    if (target == nullptr || esp_ota_set_boot_partition(target) != ESP_OK)
+    {
+        request->send(500, "application/json", "{\"status\":\"error\"}");
+        return;
+    }
+    request->send(200, "application/json", "{\"status\":\"rebooting\"}");
+    scheduleRebootTime(200);
+}
+#endif
+
 static void startServices()
 {
   if (servicesStarted) {
@@ -1197,6 +1258,10 @@ static void startServices()
   server.on("/forget", WebUpdateForget);
   server.on("/connect", WebUpdateConnect);
   server.on("/config", HTTP_GET, GetConfiguration);
+#if defined(PLATFORM_ESP32)
+  server.on("/slot", HTTP_GET, WebGetSlot);
+  server.addHandler(new AsyncCallbackJsonWebHandler("/slot", WebSetSlot));
+#endif
   server.on("/access", WebUpdateAccessPoint);
   server.on("/firmware.bin", WebUpdateGetFirmware);
 
