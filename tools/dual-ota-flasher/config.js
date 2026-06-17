@@ -24,5 +24,5 @@ function detectRepo() {
     const repo = (location.pathname.split("/").filter(Boolean)[0]) || `${owner}.github.io`;
     return { owner, repo };
   }
-  return { owner: "vostapiv", repo: "ExpressLRS" }; // fallback for localhost; edit if forked
+  return { owner: "Akceptor", repo: "ElrsDual" }; // fallback for localhost; edit if forked
 }
