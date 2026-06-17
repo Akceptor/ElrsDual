@@ -31,6 +31,20 @@ export function setBusy(busy) {
   if (window.onBusyChange) window.onBusyChange(busy);
 }
 
+// Reboot the board. esptool-js after("hard_reset") only releases RTS (it assumes EN was
+// already held low), which on these UART adapters doesn't actually cycle the chip — so the
+// board never reboots. Do the full pulse ourselves: GPIO0 high (boot app), EN low, release.
+async function hardReboot() {
+  try {
+    await transport.setDTR(false);   // GPIO0 high → run the app, not the bootloader
+    await transport.setRTS(true);    // EN low → assert reset
+    await new Promise((r) => setTimeout(r, 100));
+    await transport.setRTS(false);   // EN high → out of reset, boots
+  } catch (e) {
+    log("Reset error: " + (e.message || e) + " — power-cycle the board to reboot.");
+  }
+}
+
 if (!navigator.serial) {
   document.getElementById("unsupported").style.display = "block";
   document.getElementById("connect").disabled = true;
@@ -93,7 +107,7 @@ export async function flashData(data, address, slotLabel) {
       reportProgress: (i, written, total) => { if (written === total) log("  " + slotLabel + " written"); },
     });
     log("Flash complete. Resetting…");
-    await esploader.after("hard_reset");
+    await hardReboot();
     log("Done — " + slotLabel + " updated. Board boots the currently-active slot (use Set active to switch).");
     ok = true;
   } catch (e) {
@@ -156,7 +170,7 @@ export async function flashFullProvision(app0Data, app1Data, useSlotSwitch = fal
       },
     });
     log("Flash complete. Resetting…");
-    await esploader.after("hard_reset");
+    await hardReboot();
     log("Done — board reboots into app0 (ELRS v3.x).");
     ok = true;
   } catch (e) {
@@ -298,7 +312,7 @@ document.getElementById("flashboot").addEventListener("click", async () => {
       eraseAll: false, compress: true,
       reportProgress: (i, written, total) => { if (written === total) log("  bootloader written"); },
     });
-    await esploader.after("hard_reset");
+    await hardReboot();
     log("Slot-switch bootloader installed. 3 quick power cycles now flips the slot.");
     mm({ type: "bootloader", value: "custom" });
   } catch (e) {
@@ -320,7 +334,7 @@ document.getElementById("setslot").addEventListener("click", async () => {
       flashMode: "keep", flashFreq: "keep", flashSize: "keep",
       eraseAll: false, compress: true, reportProgress: () => {},
     });
-    await esploader.after("hard_reset");
+    await hardReboot();
     log("Active slot → " + (slot === 0 ? "app0 (ELRS v3.x)" : "app1 (ELRS v4.x)") + ". Rebooting…");
     mm({ type: "active", slot });
   } catch (e) {
