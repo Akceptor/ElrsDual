@@ -135,10 +135,8 @@
   .mm-kv { font-size:.78rem; color:var(--muted); }
   .mm-kv .mm-val { color:var(--ink); }
   .mm-kv .mm-val.set { font-weight:600; }
-  .mm-state { font-size:.66rem; font-weight:700; padding:1px 6px; border-radius:999px;
-              background:var(--chip-line); color:var(--ink); writing-mode:horizontal-tb; }
+  .mm-state { font-size:1rem; line-height:1; writing-mode:horizontal-tb; cursor:help; }
   #mm-cell-boot.custom { border-color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
-  #mm-cell-boot.custom .mm-state { background:var(--accent); color:#fff; }
   .mm-badge { display:none; font-size:.62rem; font-weight:800; letter-spacing:.04em; padding:1px 6px;
               border-radius:999px; background:var(--ok); color:#fff; }
   .mm-badge.show { display:inline-block; }
@@ -175,7 +173,7 @@
       <div class="mm-cell narrow" id="mm-cell-boot">
         <span class="mm-vlabel" data-i18n="mm_bootloader">Bootloader</span>
         <span class="mm-addr">0x1000</span>
-        <span id="mm-bootloader-state" class="mm-state" data-i18n="mm_unknown">—</span>
+        <span id="mm-bootloader-state" class="mm-state" data-i18n-title="mm_unknown" title="">—</span>
       </div>
       <div class="mm-cell narrow">
         <span class="mm-vlabel" data-i18n="mm_parttable">Partition table</span>
