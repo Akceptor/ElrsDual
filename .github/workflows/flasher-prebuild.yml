@@ -82,7 +82,7 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         run: |
           python -m pip install --upgrade pip
-          pip install platformio wheel
+          pip install platformio wheel intelhex
       - name: Build generic firmware
         if: steps.scope.outputs.run == 'true'
         working-directory: src
@@ -104,6 +104,7 @@ jobs:
 
   publish:
     needs: build
+    if: ${{ !cancelled() }}   # publish whatever built, even if some envs failed
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
