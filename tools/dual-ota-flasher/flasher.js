@@ -65,9 +65,32 @@ document.getElementById("connect").addEventListener("click", async () => {
     const loader = new ESPLoader({ transport: t, baudrate: baud, terminal, debugLogging: false });
     const chip = await loader.main();
     if (!loader.chip) throw new Error("chip not detected — hold BOOT and retry");
+
+    // Guard: this dual-OTA tool only supports a plain ESP32 with >= 4 MB flash
+    // (bundled bootloader/partitions are esp32 4 MB min_spiffs). Refuse anything else.
+    const chipName = (loader.chip.CHIP_NAME || "").toString();
+    let mb = 0;
+    try {
+      const id = await loader.readFlashId();
+      const m = /^(\d+)MB$/.exec(loader.DETECTED_FLASH_SIZES[(id >> 16) & 0xff] || "");
+      mb = m ? parseInt(m[1], 10) : 0;
+    } catch (_) { /* size detection failed — treat as unknown */ }
+
+    if (chipName !== "ESP32") {
+      log("Unsupported chip: " + (chipName || "unknown") +
+          ". This tool flashes a plain ESP32 (≥4 MB) only — not connecting.");
+      try { await t.disconnect(); } catch (_) {}
+      return;
+    }
+    if (mb && mb < 4) {
+      log("Flash is only " + mb + " MB — dual-OTA needs ≥4 MB. Not connecting.");
+      try { await t.disconnect(); } catch (_) {}
+      return;
+    }
+
     transport = t;
     esploader = loader;
-    log("Connected: " + chip);
+    log("Connected: " + chip + "   [" + chipName + ", " + (mb ? mb + " MB flash" : "flash size unknown") + "]");
     controls.style.display = "block";
   } catch (e) {
     esploader = null;
