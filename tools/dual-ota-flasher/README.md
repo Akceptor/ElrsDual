@@ -209,41 +209,46 @@ you get "No serial data received" errors.
 
 ---
 
-## Build from source (GitHub Actions)
+## Get firmware & stage (public, no token)
 
-The **Build** section compiles a chosen ESP32 target from the v3.6.3 / v4 branch in
-GitHub Actions, configures it in your browser (target / domain / bind phrase — the phrase
-never leaves your machine), and stages it into an OTA slot.
+The **Get firmware & stage** section downloads a **pre-built** ELRS image for a chosen
+ESP32 target, configures it in your browser (target / domain / bind phrase — the phrase
+never leaves your machine), and stages it into an OTA slot. **No GitHub account or token
+is required** — anyone you share the page with can use it.
 
-1. Paste a GitHub **fine-grained PAT** with **Actions: read/write** and **Contents:
-   read/write** on this repo into the *GitHub token* field (kept in `sessionStorage`).
-2. Pick **version**, **target** (ESP32-only — `esp8285`/`stm32`/`-s3`/`-c3` are hidden
-   because the bundled boot blobs are plain-ESP32 dual-OTA), **domain**, optional **bind
-   phrase**, and the **slot** to stage into; click **Build & stage**. The first build of a
-   given `{version, env}` takes a few minutes; later ones reuse the cached PlatformIO
-   toolchain.
-3. **Connect** to the board, then **Flash staged → app0/app1** (or **Flash both** after
+1. Pick **version** (v4 / v3.6.3), **target** (ESP32-only — `esp8285`/`stm32`/`-s3`/`-c3`
+   are hidden because the bundled boot blobs are plain-ESP32 dual-OTA), **domain**,
+   optional **bind phrase**, and the **slot** to stage into; click **Get & stage**.
+2. **Connect** to the board, then **Flash staged → app0/app1** (or **Flash both** after
    staging both slots).
 
-How it works: the `Flasher Build` workflow (`.github/workflows/flasher-build.yml`)
-compiles a *generic* `firmware.bin` for `{branch, env}` and commits it to a force-pushed
-orphan `flasher-artifacts` branch. The browser triggers it (`workflow_dispatch`), polls
-the run, pulls the bin back via the Git Blobs API, and specializes it locally with the
-target's hardware layout + your domain/phrase (same bytes as `python/binary_configurator.py`,
-verified by the parity test in `test/`).
+How it works:
+- **Target/layout data** comes from the public `ExpressLRS/targets` repo via raw
+  (token-free, CORS-OK) — `src/hardware/` is a clone of that repo, so it isn't in this
+  fork.
+- **Firmware** is pre-built by the `Flasher Prebuild` workflow
+  (`.github/workflows/flasher-prebuild.yml`): for each ESP32 PlatformIO env × version it
+  compiles a *generic* (unconfigured) `firmware.bin` and publishes it to the public
+  `flasher-artifacts` branch. The browser fetches `…/flasher-artifacts/<version>/<env>/firmware.bin`
+  via raw and specializes it in-JS (same bytes as `python/binary_configurator.py`,
+  verified by the parity test in `test/`). One bin per env serves every target on that env.
 
-> `workflow_dispatch` requires the workflow file to live on the **dispatched ref**. That
-> ref is `WORKFLOW_REF` in `config.js` (`dual-ota-builder` during development) — change it
-> to your default branch after merging. The version branch to compile is sent separately
-> as the `checkout_ref` input, so the workflow doesn't need to exist on the version branches.
+### Maintainer: (re)build the published firmware
+
+Run **Actions → Flasher Prebuild → Run workflow** (choose `both`, `v4`, or `v3.6.3`). It
+also runs automatically on push to `lua-slot/v4` / `lua-slot/v3.6.3`. The matrix builds
+each env, then a single `publish` job commits all bins to `flasher-artifacts` in one push
+(no matrix race). Until this has run at least once, the web tool reports
+"no published build … yet".
 
 ### Host it on GitHub Pages
 
-Enable **Settings → Pages → Build and deployment → GitHub Actions**. The `Flasher Pages`
-workflow (`.github/workflows/flasher-pages.yml`) publishes this folder to
-`https://<owner>.github.io/<repo>/`. Web Serial works there (HTTPS), and the GitHub API
-calls are CORS-allowed from `*.github.io`. The page auto-detects owner/repo on `github.io`;
-for local serving, edit the fallback in `config.js`.
+Enable **Settings → Pages → Build and deployment → GitHub Actions** (the Pages source must
+be **GitHub Actions**, not "Deploy from a branch"). The `Flasher Pages` workflow
+(`.github/workflows/flasher-pages.yml`) publishes this folder to
+`https://<owner>.github.io/<repo>/`. Web Serial works there (HTTPS), and the raw fetches
+are CORS-allowed from `*.github.io`. The page auto-detects owner/repo on `github.io`; for
+local serving, edit the fallback in `config.js`.
 
 ### Tests
 
@@ -251,4 +256,4 @@ for local serving, edit the fallback in `config.js`.
 cd tools/dual-ota-flasher/test && node --test
 ```
 Covers the in-browser configurator (incl. field-parity against this repo's
-`UnifiedConfiguration.appendToFirmware`), ESP32 target filtering, and the GitHub client.
+`UnifiedConfiguration.appendToFirmware`) and ESP32 target filtering.

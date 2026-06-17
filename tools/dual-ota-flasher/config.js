@@ -1,22 +1,27 @@
-// Static config for the builder. Safe to serve publicly (no secrets).
+// Static config for the public builder. Safe to serve publicly (no secrets, no token).
 export const REPO = detectRepo();
-export const ARTIFACT_BRANCH = "flasher-artifacts";
-export const BUILD_WORKFLOW = "flasher-build.yml";
-// Branch that HOSTS the workflow file — this is the ref we dispatch (workflow_dispatch
-// requires the file to exist on the dispatched ref). The version branch to *compile* is
-// passed separately as the checkout_ref input. Set to your default branch after merge.
-export const WORKFLOW_REF = "master";
 
-// branch label shown in UI -> git ref the workflow checks out
+// Pre-built generic firmware lives on this public branch of REPO, fetched via raw:
+//   raw.githubusercontent.com/<owner>/<repo>/<ARTIFACT_BRANCH>/<version>/<env>/firmware.bin
+// (Populated by .github/workflows/flasher-prebuild.yml — no slash in the branch name, so
+// raw resolves it and no token is needed.)
+export const ARTIFACT_BRANCH = "flasher-artifacts";
+
+// Target/layout definitions come from the public ExpressLRS targets repo (this is what
+// src/hardware is a clone of). Public, default branch, no slash → raw works token-free.
+export const TARGETS = { owner: "ExpressLRS", repo: "targets", ref: "master" };
+
+// UI version labels -> the firmware branch the prebuild workflow compiles. The browser
+// uses the label as the artifact path segment; the workflow uses the ref to checkout.
 export const BRANCHES = {
-  "v3.6.3": "lua-slot/v3.6.3",
   "v4": "lua-slot/v4",
+  "v3.6.3": "lua-slot/v3.6.3",
 };
 
 export const DOMAINS = ["eu_868", "fcc_915", "au_915", "in_866", "au_433", "eu_433", "us_433", "us_433_wide"];
 
-// Owner/repo for api.github.com + raw.githubusercontent.com.
-// On *.github.io this is inferred; override the fallback for local serving.
+// Owner/repo for the pre-built firmware (raw.githubusercontent.com).
+// On *.github.io this is inferred from the URL; override the fallback for local serving.
 function detectRepo() {
   const host = (typeof location !== "undefined" && location.hostname) || "";
   if (host.endsWith(".github.io")) {
