@@ -207,8 +207,9 @@ async function detectTarget() {
 async function flashStaged(slot) {
   if (!staged[slot]) { setStatus(`nothing staged for app${slot}`); return; }
   if (!isConnected()) { setStatus("Connect to the board first"); return; }
+  const label = staged[slot].label;   // capture: the flash auto-disconnects + clears staged
   const ok = await flashData(staged[slot].bytes, slot === 0 ? APP0_ADDR : APP1_ADDR, `app${slot} (staged)`);
-  if (ok) mm({ type: "flashed", slot, label: staged[slot].label });
+  if (ok) mm({ type: "flashed", slot, label });
 }
 
 // Full provision (bootloader + partitions + otadata + both apps) from the staged bins.
@@ -216,10 +217,11 @@ async function provisionBothStaged() {
   if (!staged[0] || !staged[1]) { setStatus("stage BOTH app0 (v3) and app1 (v4) first"); return; }
   if (!isConnected()) { setStatus("Connect to the board first"); return; }
   const useSlotSwitch = $("bld-bootsw")?.checked ?? true;
+  const l0 = staged[0].label, l1 = staged[1].label;   // capture before auto-disconnect clears staged
   const ok = await flashFullProvision(staged[0].bytes, staged[1].bytes, useSlotSwitch);
   if (ok) {
-    mm({ type: "flashed", slot: 0, label: staged[0].label });
-    mm({ type: "flashed", slot: 1, label: staged[1].label });
+    mm({ type: "flashed", slot: 0, label: l0 });
+    mm({ type: "flashed", slot: 1, label: l1 });
     mm({ type: "active", slot: 0 });
     mm({ type: "bootloader", value: useSlotSwitch ? "custom" : "stock" });
   }
@@ -235,6 +237,13 @@ function init() {
   $("bld-flash-staged-0")?.addEventListener("click", () => flashStaged(0));
   $("bld-flash-staged-1")?.addEventListener("click", () => flashStaged(1));
   $("bld-flash-staged-both")?.addEventListener("click", provisionBothStaged);
+  // Start from scratch on disconnect: drop staged images + clear status.
+  document.addEventListener("ui-reset", () => {
+    staged[0] = null;
+    staged[1] = null;
+    updateFlashButtons();
+    setStatus("");
+  });
   // Re-apply staging constraints whenever an operation finishes re-enabling buttons.
   window.onBusyChange = (busy) => { if (!busy) updateFlashButtons(); };
   updateFlashButtons();
