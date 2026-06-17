@@ -27,6 +27,8 @@ export function setBusy(busy) {
     const el = document.getElementById(id);
     if (el) el.disabled = busy;
   }
+  // Let builder.js re-apply staging constraints (which staged buttons should stay disabled).
+  if (window.onBusyChange) window.onBusyChange(busy);
 }
 
 if (!navigator.serial) {
