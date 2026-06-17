@@ -61,10 +61,13 @@
   .step-desc { color:var(--muted); font-size:.9rem; margin:.2rem 0 .9rem; }
 
   .field { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; margin:.5rem 0; }
-  .form .field { margin:.4rem 0; }
-  .form label.lbl { width:118px; flex:0 0 auto; }
-  .form .field select, .form .field input[type=text] { flex:1 1 auto; max-width:360px; }
   label.lbl { color:var(--muted); font-size:.9rem; }
+  /* field cards (official-flasher style): small label above a full-width control */
+  .form { display:flex; flex-direction:column; gap:10px; margin:.4rem 0; }
+  .ff { background:var(--chip); border:1px solid var(--line); border-radius:10px; padding:7px 12px; }
+  .ff > label { display:block; font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:1px; }
+  .ff > select, .ff > input { width:100%; max-width:none; border:0; background:transparent; color:var(--ink); font-size:1rem; padding:3px 0; }
+  .ff > select:focus, .ff > input:focus { outline:none; }
   select, input[type=text] {
     font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); }
   select { max-width:360px; }
@@ -212,15 +215,19 @@
     <p class="step-desc" data-i18n-html="step1_desc">Pick a version + your board, set the region and (optionally) a bind phrase. It downloads the matching pre-built firmware and personalises it <b>in your browser</b> (the bind phrase never leaves this page).</p>
 
     <div class="form">
-      <div class="field"><label class="lbl" for="bld-version" data-i18n="lbl_version">Version</label>
+      <div class="ff"><label for="bld-version" data-i18n="lbl_version">Version</label>
         <select id="bld-version"></select></div>
-      <div class="field"><label class="lbl" for="bld-target" data-i18n="lbl_target">Target</label>
-        <select id="bld-target"></select></div>
-      <div class="field"><label class="lbl" for="bld-domain" data-i18n="lbl_domain">Region/domain</label>
+      <div class="ff"><label for="bld-vendor" data-i18n="lbl_vendor">Vendor</label>
+        <select id="bld-vendor"></select></div>
+      <div class="ff"><label for="bld-category" data-i18n="lbl_type">Type</label>
+        <select id="bld-category"></select></div>
+      <div class="ff"><label for="bld-device" data-i18n="lbl_device">Device</label>
+        <select id="bld-device"></select></div>
+      <div class="ff"><label for="bld-domain" data-i18n="lbl_domain">Region/domain</label>
         <select id="bld-domain"></select></div>
-      <div class="field"><label class="lbl" for="bld-phrase" data-i18n="lbl_phrase">Bind phrase</label>
+      <div class="ff"><label for="bld-phrase" data-i18n="lbl_phrase">Bind phrase</label>
         <input type="text" id="bld-phrase" data-i18n-ph="ph_phrase" placeholder="optional — stays local"/></div>
-      <div class="field"><label class="lbl" for="bld-slot" data-i18n="lbl_slot">Stage into slot</label>
+      <div class="ff"><label for="bld-slot" data-i18n="lbl_slot">Stage into slot</label>
         <select id="bld-slot">
           <option value="1">app1 (v4.x)</option>
           <option value="0">app0 (v3.x)</option>
@@ -238,7 +245,6 @@
       bootloader). Stage one slot to keep the other untouched, or stage <b>both</b> to load
       v3 and v4 together.
     </div>
-    <p id="bld-staged" class="staged"></p>
   </section>
 
   <!-- STEP 2 — connect -->

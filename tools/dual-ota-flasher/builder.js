@@ -18,31 +18,40 @@ const $ = (id) => document.getElementById(id);
 const setStatus = (m) => { $("bld-status").textContent = m; };
 const mm = (detail) => document.dispatchEvent(new CustomEvent("memmap", { detail }));
 
-// Group label for the dropdown: module (TX/RX) then band (2.4 GHz / 900 MHz / LR1121).
-function groupLabel(dev) {
-  const mod = dev.firmware.includes("_TX") ? "TX" : "RX";
-  const band = /_2400_/.test(dev.firmware) ? "2.4 GHz" : /_900_/.test(dev.firmware) ? "900 MHz" : "LR1121";
-  return `${mod} — ${band}`;
+// --- cascading target selection: Vendor -> Type -> Device (like the official flasher) ---
+const CATEGORY_LABELS = {
+  tx_2400: "2.4 GHz Transmitter (TX)", rx_2400: "2.4 GHz Receiver (RX)",
+  tx_900: "900 MHz Transmitter (TX)",  rx_900: "900 MHz Receiver (RX)",
+  tx_dual: "Dual-band Transmitter (TX)", rx_dual: "Dual-band Receiver (RX)",
+};
+const catLabel = (c) => CATEGORY_LABELS[c] || c;
+const prettyVendor = (m) => m.charAt(0).toUpperCase() + m.slice(1);
+const opts = (pairs) => pairs.map(([v, t]) => `<option value="${v}">${t}</option>`).join("");
+
+const vendors = () => [...new Set(esp32.map((t) => t.mfr))].sort((a, b) => a.localeCompare(b));
+const categories = (mfr) => [...new Set(esp32.filter((t) => t.mfr === mfr).map((t) => t.cat))].sort();
+const devices = (mfr, cat) =>
+  esp32.filter((t) => t.mfr === mfr && t.cat === cat).sort((a, b) => a.dev.product_name.localeCompare(b.dev.product_name));
+
+function fillVendors() { $("bld-vendor").innerHTML = opts(vendors().map((m) => [m, prettyVendor(m)])); fillCategories(); }
+function fillCategories() {
+  $("bld-category").innerHTML = opts(categories($("bld-vendor").value).map((c) => [c, catLabel(c)]));
+  fillDevices();
 }
-const GROUP_ORDER = ["TX — 2.4 GHz", "TX — 900 MHz", "TX — LR1121", "RX — 2.4 GHz", "RX — 900 MHz", "RX — LR1121"];
+function fillDevices() {
+  $("bld-device").innerHTML = opts(devices($("bld-vendor").value, $("bld-category").value).map((t) => [t.id, t.dev.product_name]));
+}
+const selectedTarget = () => esp32.find((t) => t.id === $("bld-device").value);
 
 async function loadTargets() {
   setStatus("loading targets…");
   const res = await fetch(TARGETS_RAW("targets.json"));
   if (!res.ok) throw new Error(`targets.json HTTP ${res.status}`);
-  esp32 = filterEsp32Targets(flattenTargets(await res.json())).sort((a, b) => a.id.localeCompare(b.id));
-
-  const groups = new Map();
-  for (const t of esp32) {
-    const g = groupLabel(t.dev);
-    if (!groups.has(g)) groups.set(g, []);
-    groups.get(g).push(t);
-  }
-  const ordered = [...GROUP_ORDER.filter((g) => groups.has(g)), ...[...groups.keys()].filter((g) => !GROUP_ORDER.includes(g))];
-  $("bld-target").innerHTML = ordered.map((g) =>
-    `<optgroup label="${g}">` +
-    groups.get(g).map((t) => `<option value="${t.id}">${t.id}</option>`).join("") +
-    `</optgroup>`).join("");
+  esp32 = filterEsp32Targets(flattenTargets(await res.json())).map((t) => {
+    const [mfr, cat, device] = t.id.split(".");
+    return { ...t, mfr, cat, device };
+  });
+  fillVendors();
   setStatus(`${esp32.length} ESP32 targets`);
 }
 
@@ -53,16 +62,11 @@ async function fetchLayout(dev) {
   return res.json();
 }
 
-function renderStaged() {
-  const fmt = (s) => (s ? `${s.label} ✓` : "(none)");
-  $("bld-staged").textContent = `Staged · app0 = ${fmt(staged[0])} · app1 = ${fmt(staged[1])}`;
-}
-
 async function prepareAndStage() {
   const versionLabel = $("bld-version").value;
-  const targetId = $("bld-target").value;
-  if (!targetId) { setStatus("no target selected"); return; }
-  const dev = esp32.find((t) => t.id === targetId).dev;
+  const target = selectedTarget();
+  if (!target) { setStatus("no target selected"); return; }
+  const dev = target.dev;
   const env = targetToEnv(dev);
   const domain = $("bld-domain").value;
   const slot = Number($("bld-slot").value);
@@ -83,11 +87,11 @@ async function prepareAndStage() {
     const configured = appendConfig(generic,
       { productName: dev.product_name, luaName: dev.lua_name, defines, layout });
 
-    staged[slot] = { bytes: configured, label: `${versionLabel} · ${targetId} · ${domain}` };
-    renderStaged();
-    mm({ type: "staged", slot, label: `${versionLabel} · ${targetId}` });
-    setStatus("staged — Connect, then Flash staged");
-    log(`Staged ${staged[slot].label} → ${slot === 0 ? "app0" : "app1"} (${configured.length} bytes)`);
+    const label = `${versionLabel} · ${dev.product_name}`;
+    staged[slot] = { bytes: configured, label };
+    mm({ type: "staged", slot, label });   // shown on the flash-map diagram, not as text
+    setStatus("staged ✓ — Connect, then Flash staged");
+    log(`Staged ${label} (${domain}) → ${slot === 0 ? "app0" : "app1"} (${configured.length} bytes)`);
   } catch (e) {
     setStatus(`error: ${e.message || e}`);
     log(`Prepare error: ${e.message || e}`);
@@ -100,32 +104,32 @@ async function flashStaged(slot) {
   if (!staged[slot]) { setStatus(`nothing staged for app${slot}`); return; }
   if (!isConnected()) { setStatus("Connect to the board first"); return; }
   const ok = await flashData(staged[slot].bytes, slot === 0 ? APP0_ADDR : APP1_ADDR, `app${slot} (staged)`);
-  if (ok) mm({ type: "flashed", slot, label: staged[slot].label.split(" · ").slice(0, 2).join(" · ") });
+  if (ok) mm({ type: "flashed", slot, label: staged[slot].label });
 }
 
 // Full provision (bootloader + partitions + otadata + both apps) from the staged bins.
-// Use on a fresh board that doesn't have the dual-OTA layout yet.
 async function provisionBothStaged() {
   if (!staged[0] || !staged[1]) { setStatus("stage BOTH app0 (v3) and app1 (v4) first"); return; }
   if (!isConnected()) { setStatus("Connect to the board first"); return; }
   const useSlotSwitch = $("bld-bootsw")?.checked ?? true;
   const ok = await flashFullProvision(staged[0].bytes, staged[1].bytes, useSlotSwitch);
   if (ok) {
-    mm({ type: "flashed", slot: 0, label: staged[0].label.split(" · ").slice(0, 2).join(" · ") });
-    mm({ type: "flashed", slot: 1, label: staged[1].label.split(" · ").slice(0, 2).join(" · ") });
+    mm({ type: "flashed", slot: 0, label: staged[0].label });
+    mm({ type: "flashed", slot: 1, label: staged[1].label });
     mm({ type: "active", slot: 0 });
     mm({ type: "bootloader", value: useSlotSwitch ? "custom" : "stock" });
   }
 }
 
 function init() {
-  $("bld-domain").innerHTML = DOMAINS.map((d) => `<option value="${d}">${d}</option>`).join("");
-  $("bld-version").innerHTML = Object.keys(BRANCHES).map((v) => `<option value="${v}">${v}</option>`).join("");
+  $("bld-domain").innerHTML = opts(DOMAINS.map((d) => [d, d]));
+  $("bld-version").innerHTML = opts(Object.keys(BRANCHES).map((v) => [v, v]));
+  $("bld-vendor").addEventListener("change", fillCategories);
+  $("bld-category").addEventListener("change", fillDevices);
   $("bld-build").addEventListener("click", prepareAndStage);
   $("bld-flash-staged-0")?.addEventListener("click", () => flashStaged(0));
   $("bld-flash-staged-1")?.addEventListener("click", () => flashStaged(1));
   $("bld-flash-staged-both")?.addEventListener("click", provisionBothStaged);
-  renderStaged();
   loadTargets().catch((e) => setStatus(e.message));
 }
 
