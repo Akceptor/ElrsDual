@@ -24,11 +24,13 @@ const ACTION_IDS = ["connect", "detect", "flash", "flash0", "flash1", "read0", "
   "bld-build", "bld-flash-staged-0", "bld-flash-staged-1", "bld-flash-staged-both"];
 export function isConnected() { return esploader !== null; }
 export { APP0_ADDR, APP1_ADDR };
-export function setBusy(busy) {
+export function setBusy(busy, label) {
   for (const id of ACTION_IDS) {
     const el = document.getElementById(id);
     if (el) el.disabled = busy;
   }
+  const act = document.getElementById("log-activity");
+  if (act) act.textContent = busy && label ? " (" + label + ")" : "";
   // Let builder.js re-apply staging constraints (which staged buttons should stay disabled).
   if (window.onBusyChange) window.onBusyChange(busy);
 }
@@ -160,7 +162,7 @@ async function fileToUint8(file) {
 export async function flashData(data, address, slotLabel) {
   if (!esploader) { log("Connect first."); return false; }
   if (!data) { log("Nothing to flash for " + slotLabel + "."); return false; }
-  setBusy(true);
+  setBusy(true, "writing " + slotLabel);
   let ok = false;
   try {
     log("Flashing " + slotLabel + " (" + data.length + " bytes @ 0x" + address.toString(16) + ")…");
@@ -209,7 +211,7 @@ document.getElementById("flash1").addEventListener("click", async () => {
 export async function flashFullProvision(app0Data, app1Data, useSlotSwitch = false) {
   if (!esploader) { log("Connect first."); return false; }
   if (!app0Data || !app1Data) { log("Need both a v3.x (app0) and v4.x (app1) image."); return false; }
-  setBusy(true);
+  setBusy(true, "writing both slots + bootloader");
   let ok = false;
   try {
     const bootName = useSlotSwitch ? "bootloader-slotswitch.bin" : "bootloader.bin";
@@ -288,7 +290,7 @@ async function readChunk(addr, len) {
 
 async function readSlot(addr, filename) {
   if (!esploader) { log("Connect first."); return; }
-  setBusy(true);
+  setBusy(true, "reading " + (addr === APP0_ADDR ? "app0" : "app1"));
   log("Reading " + filename + " (" + APP_SIZE + " bytes) in " + (APP_SIZE / READ_CHUNK) + " chunks…");
   const out = new Uint8Array(APP_SIZE);
   try {
@@ -335,7 +337,7 @@ export async function readActiveSlot() {
 
 document.getElementById("active").addEventListener("click", async () => {
   if (!esploader) { log("Connect first."); return; }
-  setBusy(true);
+  setBusy(true, "reading active slot");
   try {
     const slot = await readActiveSlot();
     log("Currently boots: " + (slot === 0 ? "app0 (ELRS v3.x)" : "app1 (ELRS v4.x)"));
@@ -383,7 +385,7 @@ function buildOtadata(slot) {
 
 document.getElementById("flashboot").addEventListener("click", async () => {
   if (!esploader) { log("Connect first."); return; }
-  setBusy(true);
+  setBusy(true, "writing bootloader");
   try {
     log("Loading slot-switch bootloader…");
     const boot = await fetchBin("bootloader-slotswitch.bin");
@@ -409,7 +411,7 @@ document.getElementById("setslot").addEventListener("click", async () => {
   const sel = document.querySelector('input[name="slotsel"]:checked');
   if (!sel) { log("Select a slot first."); return; }
   const slot = parseInt(sel.value, 10);
-  setBusy(true);
+  setBusy(true, "setting active slot");
   try {
     await esploader.writeFlash({
       fileArray: [{ data: buildOtadata(slot), address: OTADATA_ADDR }],

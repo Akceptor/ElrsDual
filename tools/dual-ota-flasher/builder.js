@@ -162,7 +162,7 @@ function selectTarget(target, domain) {
 
 async function detectTarget() {
   if (!isConnected()) { setStatus("Connect first"); return; }
-  setBusy(true);
+  setBusy(true, "detecting target");
   try {
     setStatus("reading the board…");
 

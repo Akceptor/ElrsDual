@@ -109,6 +109,7 @@
   .warn { background:var(--warnbg); color:var(--warnink); border:1px solid var(--chip-line);
           border-radius:9px; padding:10px 12px; }
   code { background:var(--chip); padding:1px 5px; border-radius:5px; font-size:.85em; }
+  .log-act { color:var(--accent); font-weight:600; }
   #log { background:#0b0f17; color:#7ee787; padding:12px; border-radius:10px; height:200px; overflow:auto;
          white-space:pre-wrap; font-family:ui-monospace,Menlo,monospace; font-size:.8rem; margin-top:8px; }
   .tools-head { font-size:.8rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:26px 0 10px; }
@@ -343,7 +344,7 @@
     </section>
   </div>
 
-  <h2 style="font-size:1rem;margin:24px 0 0" data-i18n="log">Log</h2>
+  <h2 style="font-size:1rem;margin:24px 0 0"><span data-i18n="log">Log</span><span id="log-activity" class="log-act"></span></h2>
   <pre id="log"></pre>
 
   <a class="explainer" href="https://youtu.be/NJ21E1bgmrA" target="_blank" rel="noopener"
