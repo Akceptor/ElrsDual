@@ -84,7 +84,9 @@
   .btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
   .btn-lg { padding:11px 28px; font-size:1rem; }
   .btn-row { display:flex; flex-wrap:wrap; gap:8px; margin:.5rem 0; }
-  .getrow { display:flex; flex-direction:column; align-items:center; gap:6px; margin:1rem 0 .2rem; }
+  .getrow { display:flex; flex-direction:column; align-items:stretch; gap:6px; margin:1rem 0 .2rem; }
+  .getrow #bld-build { width:100%; }
+  .getrow .status { text-align:center; }
   /* tidy button groups: a primary action on its own row, secondary actions paired */
   .actions { display:flex; flex-direction:column; gap:8px; margin:.6rem 0; }
   .actions > button { width:100%; }
@@ -223,9 +225,11 @@
         <option value="460800" selected>460800</option>
         <option value="921600">921600</option>
       </select>
+    </div>
+    <div class="actions"><div class="pair">
       <button id="connect" class="btn-primary" data-i18n="btn_connect">Connect</button>
       <button id="detect" disabled data-i18n="btn_detect">Detect target</button>
-    </div>
+    </div></div>
     <p class="step-desc" data-i18n="detect_hint">“Detect target” reads firmware already on the board and pre-selects it below (won’t work on an empty/stock board).</p>
   </section>
 
