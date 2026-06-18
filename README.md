@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ![Banner](https://github.com/ExpressLRS/ExpressLRS-Hardware/blob/master/img/banner.png?raw=true)
 
 # ElrsDual
@@ -13,3 +14,4 @@ ElrsDual introduces specific enhancements over standard ExpressLRS, focusing on:
 ## Web Configuration
 For information regarding web configuration and advanced parameters, please refer to our documentation:
 [https://akceptor.github.io/ElrsDual/](https://akceptor.github.io/ElrsDual/)
+>>>>>>> elrsdual/master

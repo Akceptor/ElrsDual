@@ -1,0 +1,13 @@
+# LilyGo v2 TX (ESP32-PICO-D4, 4 MB embedded flash) — bring-up config.
+# Flash settings must match the device so the bootloader can read app images.
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_40M=y
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+# No secure boot / flash encryption — app images are plain.
+CONFIG_SECURE_BOOT=n
+CONFIG_SECURE_FLASH_ENC_ENABLED=n
+# Show the second-stage bootloader log so the hook's ESP_LOGI is visible.
+CONFIG_BOOTLOADER_LOG_LEVEL_INFO=y
+# Custom partition table adds a dedicated `slotctr` sector for the power-cycle counter.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"

@@ -1,0 +1,6 @@
+{
+  "name": "dual-ota-flasher-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test" }
+}

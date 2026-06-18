@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ELRS Dual-OTA Flasher</title>
+<script>
+  // Set theme before paint to avoid a flash of the wrong theme.
+  (function(){ try { document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || "auto"); } catch(e){} })();
+</script>
+<style>
+  :root {
+    --bg:#f6f7f9; --card:#fff; --ink:#1c2330; --muted:#5b6675; --line:#e2e6ec;
+    --accent:#2563eb; --accent-ink:#fff; --ok:#16a34a; --warnbg:#fef3c7; --warnink:#92400e;
+    --infobg:#eff6ff; --infoink:#1e40af; --info-line:#dbeafe; --chip:#f1f5f9; --chip-line:#cbd5e1;
+    --radius:12px; --yt:#ff0000;
+  }
+  :root[data-theme="dark"] {
+    --bg:#0f1115; --card:#171a21; --ink:#e6e9ef; --muted:#9aa4b2; --line:#2a2f3a;
+    --accent:#3b82f6; --accent-ink:#fff; --ok:#22c55e; --warnbg:#3a2e10; --warnink:#fcd34d;
+    --infobg:#0e1d33; --infoink:#bfdbfe; --info-line:#1e3a5f; --chip:#0c0e12; --chip-line:#2a2f3a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root[data-theme="auto"] {
+      --bg:#0f1115; --card:#171a21; --ink:#e6e9ef; --muted:#9aa4b2; --line:#2a2f3a;
+      --accent:#3b82f6; --accent-ink:#fff; --ok:#22c55e; --warnbg:#3a2e10; --warnink:#fcd34d;
+      --infobg:#0e1d33; --infoink:#bfdbfe; --info-line:#1e3a5f; --chip:#0c0e12; --chip-line:#2a2f3a;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { font-family:system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink);
+         max-width:760px; margin:0 auto; padding:18px 16px 64px; line-height:1.5; }
+  a { color:var(--accent); }
+
+  .topbar { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:8px; margin-bottom:10px; }
+  .topbar h1 { font-size:1.3rem; margin:0; text-align:center; }
+  .icon-toggle { font:inherit; background:var(--card); border:1px solid var(--line); border-radius:9px;
+                 padding:6px 11px; cursor:pointer; line-height:1; white-space:nowrap; }
+  .icon-toggle:hover { border-color:var(--accent); }
+  #theme-toggle { justify-self:start; font-size:1.1rem; }
+  #lang-toggle { justify-self:end; font-weight:600; }
+  .lede { color:var(--muted); margin:0 0 4px; }
+  .lede b { color:var(--ink); }
+  /* build stamp: same colour as the background so it's invisible; select to reveal */
+  .build { color:var(--bg); font-size:.62rem; line-height:1; margin:0 0 16px; user-select:all; -webkit-user-select:all; }
+
+  /* media: video + join button, same width as the content column */
+  .media { margin:0 0 18px; }
+  .media h2 { font-size:.9rem; color:var(--muted); margin:0 0 6px; font-weight:600; }
+  .video { position:relative; width:100%; aspect-ratio:16/9; border-radius:var(--radius);
+           overflow:hidden; border:1px solid var(--line); background:#000; }
+  .video iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  .join { display:block; width:100%; text-align:center; margin-top:10px; padding:12px 16px;
+          background:var(--yt); color:#fff; font-weight:700; text-decoration:none; border-radius:10px;
+          box-shadow:0 1px 3px rgba(0,0,0,.18); transition:filter .15s; }
+  .join:hover { filter:brightness(1.08); }
+
+  .step { background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+          padding:18px 20px; margin:0 0 16px; box-shadow:0 1px 2px rgba(16,24,40,.04); }
+  .step-head { display:flex; align-items:center; gap:10px; margin:0 0 6px; }
+  .badge { flex:0 0 auto; width:26px; height:26px; border-radius:50%; background:var(--accent);
+           color:var(--accent-ink); font-weight:700; font-size:.85rem; display:grid; place-items:center; }
+  .badge.tool { background:#64748b; }
+  .step-head h2 { font-size:1.1rem; margin:0; }
+  .step-desc { color:var(--muted); font-size:.9rem; margin:.2rem 0 .9rem; }
+
+  .field { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; margin:.5rem 0; }
+  label.lbl { color:var(--muted); font-size:.9rem; }
+  /* field cards (official-flasher style): small label above a full-width control */
+  .form { display:flex; flex-direction:column; gap:10px; margin:.4rem 0; }
+  .ff { background:var(--chip); border:1px solid var(--line); border-radius:10px; padding:7px 12px; }
+  .ff > label { display:block; font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:1px; }
+  .ff > select, .ff > input { width:100%; max-width:none; border:0; background:transparent; color:var(--ink); font-size:1rem; padding:3px 0; }
+  .ff > select:focus, .ff > input:focus { outline:none; }
+  select, input[type=text] {
+    font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); }
+  select { max-width:360px; }
+  input[type=text] { min-width:180px; }
+
+  button { font:inherit; padding:9px 14px; border-radius:9px; border:1px solid var(--line);
+           background:var(--card); color:var(--ink); cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  .btn-lg { padding:11px 28px; font-size:1rem; }
+  .btn-row { display:flex; flex-wrap:wrap; gap:8px; margin:.5rem 0; }
+  .connectrow { flex-wrap:nowrap; }
+  .connectrow select { flex:0 0 auto; }
+  .connectrow button { flex:1 1 auto; }
+  @media (max-width:480px) { .connectrow { flex-wrap:wrap; } }
+  .getrow { display:flex; flex-direction:column; align-items:stretch; gap:6px; margin:1rem 0 .2rem; }
+  .getrow #bld-build { width:100%; }
+  .getrow .status { text-align:center; }
+  /* tidy button groups: a primary action on its own row, secondary actions paired */
+  .actions { display:flex; flex-direction:column; gap:8px; margin:.6rem 0; }
+  .actions > button { width:100%; }
+  .actions .pair { display:flex; gap:8px; flex-wrap:wrap; }
+  .actions .pair > button { flex:1 1 180px; }
+
+  .info { background:var(--infobg); color:var(--infoink); border:1px solid var(--info-line);
+          border-radius:9px; padding:10px 12px; font-size:.86rem; margin:.6rem 0; }
+  .staged { background:var(--chip); border:1px dashed var(--chip-line); border-radius:9px;
+            padding:9px 12px; font-size:.86rem; color:var(--muted); margin:.6rem 0 0; }
+  .status { font-size:.86rem; color:var(--muted); }
+  .group { border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin:.7rem 0; }
+  .group > h3 { font-size:.95rem; margin:0 0 .4rem; }
+  .group small, .adv-body small { color:var(--muted); }
+
+  details.adv { border:1px solid var(--line); border-radius:10px; padding:0 14px; margin:.7rem 0; background:var(--card); }
+  details.adv > summary { cursor:pointer; padding:11px 0; font-weight:600; font-size:.92rem; list-style:none; }
+  details.adv > summary::before { content:"▸ "; color:var(--muted); }
+  details.adv[open] > summary::before { content:"▾ "; }
+  details.adv > .adv-body { padding:0 0 12px; }
+
+  .warn { background:var(--warnbg); color:var(--warnink); border:1px solid var(--chip-line);
+          border-radius:9px; padding:10px 12px; }
+  code { background:var(--chip); padding:1px 5px; border-radius:5px; font-size:.85em; }
+  .log-act { color:var(--accent); font-weight:600; }
+  #log { background:#0b0f17; color:#7ee787; padding:12px; border-radius:10px; height:200px; overflow:auto;
+         white-space:pre-wrap; font-family:ui-monospace,Menlo,monospace; font-size:.8rem; margin-top:8px; }
+  #log.flag { background:linear-gradient(to bottom, #0057B7 0 50%, #FFD700 50% 100%); }
+  .tools-head { font-size:.8rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:26px 0 10px; }
+  .chk { display:flex; align-items:center; gap:8px; font-size:.88rem; color:var(--ink); margin:.5rem 0; }
+  .chk.center { justify-content:center; text-align:center; }
+  .explainer { display:block; width:100%; text-align:center; margin:18px 0 0; padding:13px 16px;
+               background:linear-gradient(135deg,var(--accent),#7c3aed); color:#fff; font-weight:700;
+               text-decoration:none; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.18); transition:filter .15s; }
+  .explainer:hover { filter:brightness(1.08); }
+
+  /* flash-memory map — horizontal bar */
+  .mm-cap { color:var(--muted); font-size:.8rem; margin:.1rem 0 .8rem; }
+  .mm { display:flex; align-items:stretch; gap:6px; border:1px solid var(--line); border-radius:10px;
+        padding:8px; background:var(--chip); overflow-x:auto; }
+  .mm-cell { border:1px solid var(--chip-line); border-radius:7px; padding:8px 7px; background:var(--card);
+             display:flex; flex-direction:column; align-items:center; justify-content:space-between;
+             gap:6px; min-height:128px; }
+  .mm-cell .mm-addr { font-family:ui-monospace,Menlo,monospace; font-size:.66rem; color:var(--muted); }
+  .mm-vlabel { writing-mode:vertical-rl; transform:rotate(180deg); text-transform:uppercase;
+               font-size:.72rem; font-weight:700; letter-spacing:.05em; white-space:nowrap; flex:1 1 auto; }
+  .mm-cell.narrow { width:42px; flex:0 0 auto; }
+  .mm-cell.free { flex:1 1 auto; min-width:60px; opacity:.7; }
+  .mm-cell.slot { flex:1 1 0; min-width:150px; align-items:flex-start; justify-content:flex-start; gap:3px; }
+  .mm-cell.slot .mm-name { font-weight:700; font-size:.85rem; }
+  .mm-cell.slot.mm-active { border-color:var(--ok); box-shadow:0 0 0 2px color-mix(in srgb, var(--ok) 25%, transparent); }
+  .mm-kv { font-size:.78rem; color:var(--muted); }
+  .mm-kv .mm-val { color:var(--ink); }
+  .mm-kv .mm-val.set { font-weight:600; }
+  .mm-state { font-size:1rem; line-height:1; writing-mode:horizontal-tb; cursor:help; }
+  #mm-cell-boot.custom { border-color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+  .mm-badge { display:none; font-size:.62rem; font-weight:800; letter-spacing:.04em; padding:1px 6px;
+              border-radius:999px; background:var(--ok); color:#fff; }
+  .mm-badge.show { display:inline-block; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <button id="theme-toggle" class="icon-toggle" title="Theme" aria-label="Theme">🌙</button>
+    <h1>ELRS Dual-OTA Flasher</h1>
+    <button id="lang-toggle" class="icon-toggle" title="Language" aria-label="Language">🇬🇧 EN</button>
+  </div>
+
+  <p class="lede" data-i18n-html="lede">Put <b>two</b> ELRS firmwares on one ESP32 at once — <b>app0 = v3.x</b> and <b>app1 = v4.x</b> — and switch between them. Chrome or Edge only.</p>
+  <!-- Hidden build stamp (same colour as the background); select the line to reveal it. -->
+  <div class="build" id="build">build __BUILD__</div>
+
+  <!-- video + join -->
+  <div class="media">
+    <div class="video">
+      <iframe src="https://www.youtube.com/embed/s7KWTgMyGEs" title="ELRS Dual-OTA Flasher"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen></iframe>
+    </div>
+    <a class="join" href="https://www.youtube.com/channel/UCAki0WWEoCPVeu3Juz2L3yQ/join"
+       target="_blank" rel="noopener" data-i18n="join">▶  Join my YouTube channel</a>
+  </div>
+
+  <p id="unsupported" class="warn" style="display:none" data-i18n-html="unsupported">
+     ⚠️ Web Serial isn’t available in this browser. Use <b>Chrome</b> or <b>Edge</b> over <code>https</code> (or <code>http://localhost</code>).</p>
+
+  <!-- flash memory map -->
+  <section class="step">
+    <div class="step-head"><span class="badge tool">▤</span><h2 data-i18n="mm_title">ESP32 flash map</h2></div>
+    <p class="mm-cap" data-i18n="mm_caption">“On board / active” reflect what you do in this session (and Read active); the tool doesn’t auto-read the chip.</p>
+    <div class="mm">
+      <div class="mm-cell narrow" id="mm-cell-boot">
+        <span class="mm-vlabel" data-i18n="mm_bootloader">Bootloader</span>
+        <span class="mm-addr">0x1000</span>
+        <span id="mm-bootloader-state" class="mm-state" data-i18n-title="mm_unknown" title="">—</span>
+      </div>
+      <div class="mm-cell narrow">
+        <span class="mm-vlabel" data-i18n="mm_parttable">Partition table</span>
+        <span class="mm-addr">0x8000</span>
+      </div>
+      <div class="mm-cell narrow" title="NVS — your saved settings, left untouched">
+        <span class="mm-vlabel" data-i18n="mm_nvs">NVS settings</span>
+        <span class="mm-addr">0x9000</span>
+      </div>
+      <div class="mm-cell narrow" title="OTA data — which slot boots">
+        <span class="mm-vlabel" data-i18n="mm_otadata">OTA data</span>
+        <span class="mm-addr">0xe000</span>
+      </div>
+      <div class="mm-cell slot" id="mm-row-0">
+        <span class="mm-name">app0 · v3.x <span id="mm-badge-0" class="mm-badge" data-i18n="mm_active">ACTIVE</span></span>
+        <span class="mm-addr">0x10000</span>
+        <span class="mm-kv"><span data-i18n="mm_staged">staged:</span> <span id="mm-staged-0" class="mm-val">—</span></span>
+        <span class="mm-kv"><span data-i18n="mm_onboard">on board:</span> <span id="mm-board-0" class="mm-val">—</span></span>
+      </div>
+      <div class="mm-cell slot" id="mm-row-1">
+        <span class="mm-name">app1 · v4.x <span id="mm-badge-1" class="mm-badge" data-i18n="mm_active">ACTIVE</span></span>
+        <span class="mm-addr">0x1F0000</span>
+        <span class="mm-kv"><span data-i18n="mm_staged">staged:</span> <span id="mm-staged-1" class="mm-val">—</span></span>
+        <span class="mm-kv"><span data-i18n="mm_onboard">on board:</span> <span id="mm-board-1" class="mm-val">—</span></span>
+      </div>
+      <div class="mm-cell free">
+        <span class="mm-vlabel" data-i18n="mm_spiffs">SPIFFS / filesystem</span>
+        <span class="mm-addr">0x3D0000</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 1 — connect -->
+  <section class="step">
+    <div class="step-head"><span class="badge">1</span><h2 data-i18n="step2_h">Connect your board</h2></div>
+    <p class="step-desc" data-i18n-html="step2_desc">Plug the board in over USB and connect. Hold <b>BOOT</b> while connecting if it won’t sync. Flashing tools unlock once connected.</p>
+    <div class="field connectrow">
+      <label class="lbl" for="baud" data-i18n="lbl_baud">Baud</label>
+      <select id="baud">
+        <option value="115200" selected>115200</option>
+        <option value="230400">230400</option>
+        <option value="460800">460800</option>
+        <option value="921600">921600</option>
+      </select>
+      <button id="connect" class="btn-primary" data-i18n="btn_connect">Connect</button>
+      <button id="detect" disabled data-i18n="btn_detect">Detect target</button>
+    </div>
+    <p class="step-desc" data-i18n="detect_hint">“Detect target” reads firmware already on the board and pre-selects it below (won’t work on an empty/stock board).</p>
+  </section>
+
+  <!-- STEP 2 — configure & stage -->
+  <section class="step" id="build-section">
+    <div class="step-head"><span class="badge">2</span><h2 data-i18n="step1_h">Configure firmware</h2></div>
+    <p class="step-desc" data-i18n-html="step1_desc">Pick a version + your board, set the region and (optionally) a bind phrase. It downloads the matching pre-built firmware and personalises it <b>in your browser</b> (the bind phrase never leaves this page).</p>
+
+    <div class="form">
+      <div class="ff"><label for="bld-version" data-i18n="lbl_version">Version</label>
+        <select id="bld-version"></select></div>
+      <div class="ff"><label for="bld-vendor" data-i18n="lbl_vendor">Vendor</label>
+        <select id="bld-vendor"></select></div>
+      <div class="ff"><label for="bld-category" data-i18n="lbl_type">Type</label>
+        <select id="bld-category"></select></div>
+      <div class="ff"><label for="bld-device" data-i18n="lbl_device">Device</label>
+        <select id="bld-device"></select></div>
+      <div class="ff"><label for="bld-domain" data-i18n="lbl_domain">Region/domain</label>
+        <select id="bld-domain"></select></div>
+      <div class="ff"><label for="bld-phrase" data-i18n="lbl_phrase">Bind phrase</label>
+        <input type="text" id="bld-phrase" data-i18n-ph="ph_phrase" placeholder="optional — stays local"/></div>
+      <div class="ff"><label for="bld-slot" data-i18n="lbl_slot">Stage into slot</label>
+        <select id="bld-slot">
+          <option value="1">app1 (v4.x)</option>
+          <option value="0">app0 (v3.x)</option>
+        </select></div>
+    </div>
+    <div class="getrow">
+      <button id="bld-build" class="btn-primary btn-lg" data-i18n="btn_getstage">Get &amp; stage</button>
+      <span id="bld-status" class="status"></span>
+    </div>
+
+    <div class="info" data-i18n-html="info1">
+      <b>Two slots, kept side by side.</b> Staging v3 into app0 and v4 into app1 does
+      <b>not</b> erase the other — both firmwares live on the board and you choose which
+      one boots (Step 3 → <i>Active slot</i>, or 3 quick power-cycles with the slot-switch
+      bootloader). Stage one slot to keep the other untouched, or stage <b>both</b> to load
+      v3 and v4 together.
+    </div>
+  </section>
+
+  <!-- STEP 3 + tools — require a connection (#controls hidden until connected) -->
+  <div id="controls" style="display:none">
+    <section class="step">
+      <div class="step-head"><span class="badge">3</span><h2 data-i18n="step3_h">Flash to the board</h2></div>
+
+      <div class="group">
+        <h3 data-i18n="grp_cloud_h">Flash the firmware you staged (from the cloud)</h3>
+        <small data-i18n="grp_cloud_small">Use these after Step 1.</small>
+        <div class="actions">
+          <button id="bld-flash-staged-both" class="btn-primary btn-lg" data-i18n="btn_provision_both">Provision both slots (fresh board)</button>
+          <label class="chk center"><input type="checkbox" id="bld-bootsw" checked/>
+            <span data-i18n="use_slotsw">Install slot-switch bootloader (3 power-cycles switch slots)</span></label>
+          <div class="pair">
+            <button id="bld-flash-staged-0" data-i18n="btn_update0">Update app0 (v3.x) in place</button>
+            <button id="bld-flash-staged-1" data-i18n="btn_update1">Update app1 (v4.x) in place</button>
+          </div>
+        </div>
+        <div class="info" data-i18n-html="info3">
+          <b>Provision both</b> sets up a new/stock board — it writes the bootloader, partition
+          table and both slots (needs both v3 and v4 staged), then boots app0.
+          <b>Update appN</b> replaces just that one version, leaving the other slot, the
+          bootloader and the active-slot choice untouched.
+        </div>
+      </div>
+
+      <details class="adv">
+        <summary>📂 <span data-i18n-html="adv_local_sum">Advanced — flash your own local <code>.bin</code> files</span></summary>
+        <div class="adv-body">
+          <div class="field"><span data-i18n="lbl_v3file">v3.x image (→ app0):</span> <input type="file" id="v3file" accept=".bin"/></div>
+          <div class="field"><span data-i18n="lbl_v4file">v4.x image (→ app1):</span> <input type="file" id="v4file" accept=".bin"/></div>
+          <div class="actions">
+            <button id="flash" data-i18n="btn_flash_both">Flash both slots (full provision)</button>
+            <div class="pair">
+              <button id="flash0" data-i18n="btn_flash0">Flash app0 only</button>
+              <button id="flash1" data-i18n="btn_flash1">Flash app1 only</button>
+            </div>
+          </div>
+          <small data-i18n="adv_local_small">For images you configured yourself with the ELRS Configurator / official web flasher.</small>
+        </div>
+      </details>
+
+      <details class="adv">
+        <summary>📥 <span data-i18n="adv_read_sum">Read firmware back from a slot</span></summary>
+        <div class="adv-body">
+          <div class="actions"><div class="pair">
+            <button id="read0" data-i18n="btn_read0">Read app0 (v3.x)</button>
+            <button id="read1" data-i18n="btn_read1">Read app1 (v4.x)</button>
+          </div></div>
+          <small data-i18n-html="adv_read_small">Downloads the full slot to a <code>.bin</code> (≈1 min each).</small>
+        </div>
+      </details>
+    </section>
+
+    <p class="tools-head" data-i18n="tools">Tools</p>
+
+    <section class="step">
+      <div class="step-head"><span class="badge tool">⇄</span><h2 data-i18n="slotsw_h">Slot switcher</h2></div>
+      <p class="step-desc" data-i18n-html="slotsw_desc">Choose which firmware boots. <i>Read active</i> shows the current one.</p>
+      <div class="field">
+        <label><input type="radio" name="slotsel" value="0"/> app0 (v3.x)</label>
+        <label><input type="radio" name="slotsel" value="1"/> app1 (v4.x)</label>
+      </div>
+      <div class="actions"><div class="pair">
+        <button id="active" data-i18n="btn_readactive">Read active</button>
+        <button id="setslot" class="btn-primary" data-i18n="btn_setslot">Set active + reboot</button>
+      </div></div>
+    </section>
+
+    <section class="step">
+      <div class="step-head"><span class="badge tool">⚙</span><h2 data-i18n="bootl_h">Slot-switch bootloader</h2></div>
+      <p class="step-desc" data-i18n-html="bootl_desc">Installs a custom second-stage bootloader (to <code>0x1000</code> only; app slots untouched). Then <b>3 quick power-cycles</b> (each off/on within ~2&nbsp;s) flip the active slot — no computer needed. Normal boots wait ~2&nbsp;s. 4&nbsp;MB ESP32 / min_spiffs.</p>
+      <div class="actions">
+        <button id="flashboot" data-i18n="btn_flashboot">Flash slot-switch bootloader (0x1000)</button>
+      </div>
+    </section>
+  </div>
+
+  <h2 style="font-size:1rem;margin:24px 0 0"><span data-i18n="log">Log</span><span id="log-activity" class="log-act"></span></h2>
+  <pre id="log"></pre>
+
+  <a class="explainer" href="https://youtu.be/NJ21E1bgmrA" target="_blank" rel="noopener"
+     data-i18n="explainer">🎬  Watch the full video explainer</a>
+
+  <script>
+    // Theme toggle (light/dark). Starts from stored choice or the system preference.
+    (function(){
+      var btn=document.getElementById("theme-toggle"); if(!btn) return;
+      function effective(){
+        var t=document.documentElement.getAttribute("data-theme")||"auto";
+        if(t==="auto"){ return matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"; }
+        return t;
+      }
+      function render(){ btn.textContent = effective()==="dark" ? "🌙" : "☀️"; }
+      render();
+      btn.addEventListener("click",function(){
+        var next = effective()==="dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme",next);
+        try{ localStorage.setItem("theme",next); }catch(e){}
+        render();
+      });
+    })();
+  </script>
+  <script type="module" src="i18n.js"></script>
+  <script type="module" src="memmap.js"></script>
+  <script type="module" src="flasher.js"></script>
+  <script type="module" src="builder.js"></script>
+</body>
+</html>
