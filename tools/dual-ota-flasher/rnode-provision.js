@@ -93,7 +93,11 @@ export async function provisionRNode(band, setStatus) {
   // user is not prompted to select a port again.  Fall back to requestPort() if none.
   const knownPort = getLastPort();
   const port = knownPort ?? await navigator.serial.requestPort();
-  await port.open({ baudRate: 115200 });
+
+  // esptool's transport.disconnect() releases reader/writer but may leave the underlying
+  // SerialPort open.  Only call open() when the port is actually closed.
+  const wasOpen = port.readable !== null;
+  if (!wasOpen) await port.open({ baudRate: 115200 });
 
   try {
     const model       = band === "433" ? MODEL_B4 : MODEL_B9;
@@ -140,6 +144,6 @@ export async function provisionRNode(band, setStatus) {
     setStatus("");
     log(`RNode provision: done ✓  model ${band === "433" ? "B4" : "B9"} · ${band === "433" ? FREQ_433 : FREQ_868} Hz`);
   } finally {
-    try { await port.close(); } catch (_) {}
+    if (!wasOpen) try { await port.close(); } catch (_) {}
   }
 }
