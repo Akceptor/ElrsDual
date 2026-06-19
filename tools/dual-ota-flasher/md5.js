@@ -390,7 +390,98 @@ const md5 = (function () {
     return rawHMACMD5(key, string)
   }
 
+  /**
+   * MD5 of a raw binary string (each char is one byte, no UTF-8 conversion).
+   * Use this when you have raw bytes packed as String.fromCharCode(b) — it
+   * matches Python's hashlib.md5(bytes(...)).hexdigest() for any byte value.
+   *
+   * @param {string} s Binary string (one char per byte)
+   * @returns {string} Hex encoded MD5
+   */
+  function hexRawBytesMD5(s) {
+    return rstr2hex(rstrMD5(s))
+  }
+
   return md5
 })()
 
-export { md5 }
+// re-derive hexRawBytesMD5 as a standalone export so callers that need raw-byte
+// (non-UTF8) MD5 don't have to depend on the md5() main entry point.
+function rstr2binlLocal(input) {
+  const output = new Array(Math.ceil(input.length / 4)).fill(0)
+  for (let i = 0; i < input.length * 8; i += 8) {
+    output[i >> 5] |= (input.charCodeAt(i / 8) & 0xff) << (i % 32)
+  }
+  return output
+}
+
+function safeAddLocal(x, y) {
+  const lsw = (x & 0xffff) + (y & 0xffff)
+  const msw = (x >> 16) + (y >> 16) + (lsw >> 16)
+  return (msw << 16) | (lsw & 0xffff)
+}
+
+function bitRotateLeftLocal(num, cnt) { return (num << cnt) | (num >>> (32 - cnt)) }
+function md5cmnLocal(q, a, b, x, s, t) {
+  return safeAddLocal(bitRotateLeftLocal(safeAddLocal(safeAddLocal(a, q), safeAddLocal(x, t)), s), b)
+}
+function ffL(a,b,c,d,x,s,t){return md5cmnLocal((b&c)|(~b&d),a,b,x,s,t)}
+function ggL(a,b,c,d,x,s,t){return md5cmnLocal((b&d)|(c&~d),a,b,x,s,t)}
+function hhL(a,b,c,d,x,s,t){return md5cmnLocal(b^c^d,a,b,x,s,t)}
+function iiL(a,b,c,d,x,s,t){return md5cmnLocal(c^(b|~d),a,b,x,s,t)}
+
+function binlMD5Local(x, len) {
+  x[len >> 5] |= 0x80 << (len % 32)
+  x[(((len + 64) >>> 9) << 4) + 14] = len
+  let [a, b, c, d] = [1732584193, -271733879, -1732584194, 271733878]
+  for (let i = 0; i < x.length; i += 16) {
+    const [oa,ob,oc,od] = [a,b,c,d]
+    a=ffL(a,b,c,d,x[i],7,-680876936);d=ffL(d,a,b,c,x[i+1],12,-389564586);c=ffL(c,d,a,b,x[i+2],17,606105819);b=ffL(b,c,d,a,x[i+3],22,-1044525330)
+    a=ffL(a,b,c,d,x[i+4],7,-176418897);d=ffL(d,a,b,c,x[i+5],12,1200080426);c=ffL(c,d,a,b,x[i+6],17,-1473231341);b=ffL(b,c,d,a,x[i+7],22,-45705983)
+    a=ffL(a,b,c,d,x[i+8],7,1770035416);d=ffL(d,a,b,c,x[i+9],12,-1958414417);c=ffL(c,d,a,b,x[i+10],17,-42063);b=ffL(b,c,d,a,x[i+11],22,-1990404162)
+    a=ffL(a,b,c,d,x[i+12],7,1804603682);d=ffL(d,a,b,c,x[i+13],12,-40341101);c=ffL(c,d,a,b,x[i+14],17,-1502002290);b=ffL(b,c,d,a,x[i+15],22,1236535329)
+    a=ggL(a,b,c,d,x[i+1],5,-165796510);d=ggL(d,a,b,c,x[i+6],9,-1069501632);c=ggL(c,d,a,b,x[i+11],14,643717713);b=ggL(b,c,d,a,x[i],20,-373897302)
+    a=ggL(a,b,c,d,x[i+5],5,-701558691);d=ggL(d,a,b,c,x[i+10],9,38016083);c=ggL(c,d,a,b,x[i+15],14,-660478335);b=ggL(b,c,d,a,x[i+4],20,-405537848)
+    a=ggL(a,b,c,d,x[i+9],5,568446438);d=ggL(d,a,b,c,x[i+14],9,-1019803690);c=ggL(c,d,a,b,x[i+3],14,-187363961);b=ggL(b,c,d,a,x[i+8],20,1163531501)
+    a=ggL(a,b,c,d,x[i+13],5,-1444681467);d=ggL(d,a,b,c,x[i+2],9,-51403784);c=ggL(c,d,a,b,x[i+7],14,1735328473);b=ggL(b,c,d,a,x[i+12],20,-1926607734)
+    a=hhL(a,b,c,d,x[i+5],4,-378558);d=hhL(d,a,b,c,x[i+8],11,-2022574463);c=hhL(c,d,a,b,x[i+11],16,1839030562);b=hhL(b,c,d,a,x[i+14],23,-35309556)
+    a=hhL(a,b,c,d,x[i+1],4,-1530992060);d=hhL(d,a,b,c,x[i+4],11,1272893353);c=hhL(c,d,a,b,x[i+7],16,-155497632);b=hhL(b,c,d,a,x[i+10],23,-1094730640)
+    a=hhL(a,b,c,d,x[i+13],4,681279174);d=hhL(d,a,b,c,x[i],11,-358537222);c=hhL(c,d,a,b,x[i+3],16,-722521979);b=hhL(b,c,d,a,x[i+6],23,76029189)
+    a=hhL(a,b,c,d,x[i+9],4,-640364487);d=hhL(d,a,b,c,x[i+12],11,-421815835);c=hhL(c,d,a,b,x[i+15],16,530742520);b=hhL(b,c,d,a,x[i+2],23,-995338651)
+    a=iiL(a,b,c,d,x[i],6,-198630844);d=iiL(d,a,b,c,x[i+7],10,1126891415);c=iiL(c,d,a,b,x[i+14],15,-1416354905);b=iiL(b,c,d,a,x[i+5],21,-57434055)
+    a=iiL(a,b,c,d,x[i+12],6,1700485571);d=iiL(d,a,b,c,x[i+3],10,-1894986606);c=iiL(c,d,a,b,x[i+10],15,-1051523);b=iiL(b,c,d,a,x[i+1],21,-2054922799)
+    a=iiL(a,b,c,d,x[i+8],6,1873313359);d=iiL(d,a,b,c,x[i+15],10,-30611744);c=iiL(c,d,a,b,x[i+6],15,-1560198380);b=iiL(b,c,d,a,x[i+13],21,1309151649)
+    a=iiL(a,b,c,d,x[i+4],6,-145523070);d=iiL(d,a,b,c,x[i+11],10,-1120210379);c=iiL(c,d,a,b,x[i+2],15,718787259);b=iiL(b,c,d,a,x[i+9],21,-343485551)
+    a=safeAddLocal(a,oa);b=safeAddLocal(b,ob);c=safeAddLocal(c,oc);d=safeAddLocal(d,od)
+  }
+  return [a,b,c,d]
+}
+
+function binl2rstrLocal(input) {
+  let output = ''
+  for (let i = 0; i < input.length * 32; i += 8)
+    output += String.fromCharCode((input[i >> 5] >>> (i % 32)) & 0xff)
+  return output
+}
+
+/**
+ * MD5 of raw bytes (Uint8Array or array of 0-255 values), matching
+ * Python hashlib.md5(bytes([...])).hexdigest() exactly.
+ *
+ * @param {Uint8Array|number[]} bytes
+ * @returns {string} 32-char lowercase hex string
+ */
+function rawBytesMD5(bytes) {
+  let s = ''
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i] & 0xff)
+  const hex = '0123456789abcdef'
+  let out = ''
+  const r = binl2rstrLocal(binlMD5Local(rstr2binlLocal(s), s.length * 8))
+  for (let i = 0; i < r.length; i++) {
+    const x = r.charCodeAt(i)
+    out += hex[(x >>> 4) & 0xf] + hex[x & 0xf]
+  }
+  return out
+}
+
+export { md5, rawBytesMD5 }
