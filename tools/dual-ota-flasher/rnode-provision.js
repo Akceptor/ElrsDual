@@ -1,5 +1,5 @@
 import { rawBytesMD5 } from "./md5.js";
-import { log, getLastPort, isConnected } from "./flasher.js";
+import { log, getLastPort, isConnected, releaseEsptool } from "./flasher.js";
 
 // EEPROM layout — matches liamcottle/rnode-flasher ROM class
 const ADDR_PRODUCT   = 0x00;
@@ -132,17 +132,18 @@ async function readKissFrame(readable, expectedCmd, timeoutMs = 3000) {
 export async function provisionRNode(band, setStatus) {
   if (!navigator.serial) throw new Error("Web Serial not available");
 
-  // The esptool Transport holds reader/writer locks while connected.  Provisioning needs its
-  // own reader (for CMD_HASHES response), so we cannot share a live transport session.
-  if (isConnected()) throw new Error("Disconnect from the board first, then click Provision RNode");
+  // The esptool Transport holds reader/writer locks on the SerialPort while connected.
+  // Release it first so we can open our own reader for the CMD_HASHES response.
+  // releaseEsptool() closes the port (via transport.disconnect()) but leaves the controls
+  // panel visible and saves lastPort for reuse below.
+  if (isConnected()) await releaseEsptool();
 
-  // Reuse the port from the esptool session (retained after flash/disconnect) so the
-  // user is not prompted to select a port again.  Fall back to requestPort() if none.
+  // Reuse the port from the esptool session (retained by releaseEsptool / disconnect) so
+  // the user is not prompted to select a port again.  Fall back to requestPort() if none.
   const knownPort = getLastPort();
   const port = knownPort ?? await navigator.serial.requestPort();
 
-  // After disconnect() the transport releases reader/writer locks but may leave the port
-  // open at the esptool baud rate.  Reopen only when the port is actually closed.
+  // transport.disconnect() closes the underlying SerialPort — reopen at 115200 for KISS.
   let shouldClose = false;
   if (port.readable === null) {
     await port.open({ baudRate: 115200 });
