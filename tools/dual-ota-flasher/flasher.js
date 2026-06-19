@@ -89,6 +89,19 @@ async function disconnect() {
   log("Disconnected.");
 }
 
+// Release the esptool Transport (frees reader/writer locks + closes the port) without
+// hiding the controls panel — used by the RNode provisioner which needs the raw port.
+// Updates the connect button so the user sees the session is no longer live.
+export async function releaseEsptool() {
+  lastPort = transport?.device ?? lastPort;
+  try { await transport?.disconnect(); } catch (_) {}
+  esploader = null;
+  transport = null;
+  viaPassthrough = false;
+  const c = document.getElementById("connect");
+  if (c) { c.setAttribute("data-i18n", "btn_connect"); if (window.i18nRefresh) window.i18nRefresh(); }
+}
+
 document.getElementById("connect").addEventListener("click", async () => {
   if (esploader) { await disconnect(); return; }   // toggle: disconnect when connected
   esploader = null;
