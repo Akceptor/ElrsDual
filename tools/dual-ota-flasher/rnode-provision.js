@@ -125,9 +125,7 @@ export async function provisionRNode(band, setStatus) {
     log("RNode provision: writing signature (128 bytes, please wait)");
     for (let i = 0; i < 128; i++) await writeRom(port.writable, ADDR_SIGNATURE + i, 0x00);
 
-    await writeRom(port.writable, ADDR_INFO_LOCK, INFO_LOCK_BYTE);
-
-    // 4 — radio config (11 writes × 85 ms ≈ 1 s)
+    // 4 — radio config BEFORE locking (eeprom_write() rejects all writes once INFO_LOCK is set)
     setStatus("Writing radio config (4/4)…");
     log(`RNode provision: writing radio config — ${band === "433" ? "433 MHz" : "868/915 MHz"}, BW 125 kHz, SF ${DEFAULT_SF}`);
     await writeRom(port.writable, ADDR_CONF_SF,  DEFAULT_SF);
@@ -136,6 +134,9 @@ export async function provisionRNode(band, setStatus) {
     for (const [i, b] of packU32BE(DEFAULT_BW).entries())   await writeRom(port.writable, ADDR_CONF_BW   + i, b);
     for (const [i, b] of packU32BE(defaultFreq).entries())  await writeRom(port.writable, ADDR_CONF_FREQ + i, b);
     await writeRom(port.writable, ADDR_CONF_OK, CONF_OK_BYTE);
+
+    // Lock device info last — after this, CMD_ROM_WRITE is blocked for all addresses
+    await writeRom(port.writable, ADDR_INFO_LOCK, INFO_LOCK_BYTE);
 
     // save config
     await portWrite(port.writable, kissFrame(CMD_CONF_SAVE, 0x00));
