@@ -118,9 +118,9 @@ async function prepareAndStage() {
 
     staged[slot] = { bytes: configured, label: fetchLabel };
     updateFlashButtons();
-    mm({ type: "staged", slot, label });   // shown on the flash-map diagram, not as text
+    mm({ type: "staged", slot, label: fetchLabel });
     setStatus("staged ✓ — Connect, then Flash staged");
-    log(`Staged ${label} (${domain}) → ${slot === 0 ? "app0" : "app1"} (${configured.length} bytes)`);
+    log(`Staged ${fetchLabel} → ${slot === 0 ? "app0" : "app1"} (${configured.length} bytes)`);
   } catch (e) {
     setStatus(`error: ${e.message || e}`);
     log(`Prepare error: ${e.message || e}`);
