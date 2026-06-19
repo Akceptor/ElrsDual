@@ -137,10 +137,18 @@ export async function provisionRNode(band, setStatus) {
   const knownPort = getLastPort();
   const port = knownPort ?? await navigator.serial.requestPort();
 
-  // esptool's transport.disconnect() releases reader/writer but may leave the underlying
-  // SerialPort open.  Only call open() when the port is actually closed.
-  const wasOpen = port.readable !== null;
-  if (!wasOpen) await port.open({ baudRate: 115200 });
+  // esptool's Transport holds a reader lock on port.readable even after disconnect().
+  // If the stream is locked we must close and reopen the port to clear it.
+  // If the port is simply still open (readable not null, not locked) we can use it as-is.
+  let shouldClose = false;
+  if (port.readable === null) {
+    await port.open({ baudRate: 115200 });
+    shouldClose = true;
+  } else if (port.readable.locked) {
+    await port.close();
+    await port.open({ baudRate: 115200 });
+    shouldClose = true;
+  }
 
   try {
     const model       = band === "433" ? MODEL_B4 : MODEL_B9;
@@ -198,6 +206,6 @@ export async function provisionRNode(band, setStatus) {
     setStatus("");
     log(`RNode provision: done ✓  model ${band === "433" ? "B4" : "B9"} · ${band === "433" ? FREQ_433 : FREQ_868} Hz`);
   } finally {
-    if (!wasOpen) try { await port.close(); } catch (_) {}
+    if (shouldClose) try { await port.close(); } catch (_) {}
   }
 }
