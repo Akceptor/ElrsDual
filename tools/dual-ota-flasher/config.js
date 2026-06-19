@@ -16,6 +16,12 @@ export const TARGETS = { owner: "ExpressLRS", repo: "targets", ref: "master" };
 export const BRANCHES = {
   "v4.0.1": "lua-slot/v4",
   "v3.6.3": "lua-slot/v3.6.3",
+  "rnode":  null,   // built from Akceptor/RNode_Firmware, not this repo
+};
+
+// Board display label → PlatformIO env. Must stay in sync with build-rnode matrix in flasher-prebuild.yml.
+export const RNODE_BOARDS = {
+  "LilyGo LoRa32 v2.1 (SX1276 / 868–915 MHz)": "lora32_v21",
 };
 
 export const DOMAINS = ["eu_868", "fcc_915", "au_915", "in_866", "au_433", "eu_433", "us_433", "us_433_wide"];
