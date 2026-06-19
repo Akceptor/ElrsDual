@@ -45,7 +45,7 @@
 
   Note every env that targets `platform = espressif32` (i.e., is an ESP32 board). We patch only those.
 
-  Expected: you see an env like `[env:lora32_v21]` (SX1276 / 868–915 MHz only — no SX1278 variant in the fork), and possibly others. Skip STM32 / nRF envs.
+  Expected: you see an env like `[env:lora32_v21]` (SX1276 / 433–915 MHz only — no SX1278 variant in the fork), and possibly others. Skip STM32 / nRF envs.
 
 - [ ] **Step 3: Create `min_spiffs.csv`**
 
@@ -262,7 +262,7 @@
   pio run -e lora32_v21
   ```
 
-  (SX1276 / 868–915 MHz only — the SX1278 variant does not exist in the fork.)
+  (SX1276 / 433–915 MHz only — the SX1278 variant does not exist in the fork.)
 
   Expected: succeeds.
 
@@ -452,7 +452,7 @@
 
   // Board display label → CI artifact subdirectory (arduino-cli board short-name). Must stay in sync with build-rnode job in flasher-prebuild.yml.
   export const RNODE_BOARDS = {
-    "LilyGo LoRa32 v2.1 (SX1276 / 868–915 MHz)": "lora32_v21",
+    "LilyGo LoRa32 v2.1 (SX1276 / 433–915 MHz)": "lora32_v21",
     // SX1278 (433 MHz) variant does not exist in the fork
   };
   ```
