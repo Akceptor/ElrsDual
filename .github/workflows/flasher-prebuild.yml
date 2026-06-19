@@ -11,7 +11,7 @@ on:
         required: true
         default: "both"
         type: choice
-        options: ["both", "v4.0.1", "v3.6.3"]
+        options: ["both", "v4.0.1", "v3.6.3", "rnode"]
   push:
     branches: ["lua-slot/v4", "lua-slot/v3.6.3"]
 
@@ -102,8 +102,57 @@ jobs:
           name: fw-${{ matrix.version }}-${{ matrix.env }}
           path: ${{ runner.temp }}/out/
 
+  build-rnode:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.version == 'rnode' }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: Akceptor/RNode_Firmware
+          ref: master
+
+      - name: Install arduino-cli
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Cache ESP32 core
+        uses: actions/cache@v5
+        with:
+          path: ~/.arduino15
+          key: ${{ runner.os }}-arduino-esp32-2.0.17
+
+      - name: Install ESP32 core
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls \
+            https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@2.0.17
+
+      - name: Build firmware-lora32_v21
+        run: |
+          # arduino-cli requires sketch dir to match .ino filename
+          cp -r . /tmp/RNode_Firmware
+          arduino-cli compile \
+            --fqbn esp32:esp32:ttgo-lora32 \
+            --build-property 'build.partitions.csv=/tmp/RNode_Firmware/min_spiffs.csv' \
+            --build-property "upload.maximum_size=2097152" \
+            --build-property 'compiler.cpp.extra_flags=-DBOARD_MODEL=0x37' \
+            --output-dir /tmp/rnode-out \
+            /tmp/RNode_Firmware
+          mkdir -p "$RUNNER_TEMP/out/rnode/lora32_v21"
+          cp /tmp/rnode-out/RNode_Firmware.ino.bin \
+             "$RUNNER_TEMP/out/rnode/lora32_v21/firmware.bin"
+
+      - name: Upload built bin
+        uses: actions/upload-artifact@v4
+        with:
+          name: fw-rnode-lora32_v21
+          path: ${{ runner.temp }}/out/
+
   publish:
-    needs: build
+    needs: [build, build-rnode]
     if: ${{ !cancelled() }}   # publish whatever built, even if some envs failed
     runs-on: ubuntu-latest
     steps:

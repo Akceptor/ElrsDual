@@ -244,20 +244,26 @@
     <div class="form">
       <div class="ff"><label for="bld-version" data-i18n="lbl_version">Version</label>
         <select id="bld-version"></select></div>
-      <div class="ff"><label for="bld-vendor" data-i18n="lbl_vendor">Vendor</label>
-        <select id="bld-vendor"></select></div>
-      <div class="ff"><label for="bld-category" data-i18n="lbl_type">Type</label>
-        <select id="bld-category"></select></div>
-      <div class="ff"><label for="bld-device" data-i18n="lbl_device">Device</label>
-        <select id="bld-device"></select></div>
-      <div class="ff"><label for="bld-domain" data-i18n="lbl_domain">Region/domain</label>
-        <select id="bld-domain"></select></div>
-      <div class="ff"><label for="bld-phrase" data-i18n="lbl_phrase">Bind phrase</label>
-        <input type="text" id="bld-phrase" data-i18n-ph="ph_phrase" placeholder="optional — stays local"/></div>
+      <div id="elrs-fields">
+        <div class="ff"><label for="bld-vendor" data-i18n="lbl_vendor">Vendor</label>
+          <select id="bld-vendor"></select></div>
+        <div class="ff"><label for="bld-category" data-i18n="lbl_type">Type</label>
+          <select id="bld-category"></select></div>
+        <div class="ff"><label for="bld-device" data-i18n="lbl_device">Device</label>
+          <select id="bld-device"></select></div>
+        <div class="ff"><label for="bld-domain" data-i18n="lbl_domain">Region/domain</label>
+          <select id="bld-domain"></select></div>
+        <div class="ff"><label for="bld-phrase" data-i18n="lbl_phrase">Bind phrase</label>
+          <input type="text" id="bld-phrase" data-i18n-ph="ph_phrase" placeholder="optional — stays local"/></div>
+      </div>
+      <div id="rnode-fields" hidden>
+        <div class="ff"><label for="bld-rnode-board" data-i18n="lbl_rnode_board">Board</label>
+          <select id="bld-rnode-board"></select></div>
+      </div>
       <div class="ff"><label for="bld-slot" data-i18n="lbl_slot">Stage into slot</label>
         <select id="bld-slot">
-          <option value="1">app1 (v4.x)</option>
-          <option value="0">app0 (v3.x)</option>
+          <option value="1">app1</option>
+          <option value="0">app0</option>
         </select></div>
     </div>
     <div class="getrow">

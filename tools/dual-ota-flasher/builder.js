@@ -1,4 +1,4 @@
-import { REPO, BRANCHES, ARTIFACT_BRANCH, TARGETS, DOMAINS } from "./config.js";
+import { REPO, BRANCHES, ARTIFACT_BRANCH, TARGETS, DOMAINS, RNODE_BOARDS } from "./config.js";
 import { flattenTargets, filterEsp32Targets, targetToEnv } from "./targets.js";
 import { buildDefines, appendConfig } from "./configure.js";
 import { flashData, flashFullProvision, log, isConnected, setBusy, readFlashBytes, readActiveSlot, APP0_ADDR, APP1_ADDR } from "./flasher.js";
@@ -17,6 +17,13 @@ const staged = { 0: null, 1: null };
 let esp32 = [];
 
 const $ = (id) => document.getElementById(id);
+
+function onVersionChange() {
+  const isRNode = $("bld-version").value === "rnode";
+  $("elrs-fields").hidden = isRNode;
+  $("rnode-fields").hidden = !isRNode;
+}
+
 const setStatus = (m) => { $("bld-status").textContent = m; };
 const mm = (detail) => document.dispatchEvent(new CustomEvent("memmap", { detail }));
 
@@ -74,35 +81,46 @@ async function fetchLayout(dev) {
 
 async function prepareAndStage() {
   const versionLabel = $("bld-version").value;
-  const target = selectedTarget();
-  if (!target) { setStatus("no target selected"); return; }
-  const dev = target.dev;
-  const env = targetToEnv(dev);
-  const domain = $("bld-domain").value;
   const slot = Number($("bld-slot").value);
+  let env, fetchLabel;
+
+  if (versionLabel === "rnode") {
+    env = $("bld-rnode-board").value;
+    const sel = $("bld-rnode-board");
+    fetchLabel = `RNode · ${sel.options[sel.selectedIndex].text}`;
+  } else {
+    const target = selectedTarget();
+    if (!target) { setStatus("no target selected"); return; }
+    env = targetToEnv(target.dev);
+    fetchLabel = `${versionLabel} · ${target.dev.product_name} (${$("bld-domain").value})`;
+  }
 
   $("bld-build").disabled = true;
   try {
-    setStatus(`fetching ${versionLabel} firmware…`);
+    setStatus(`fetching ${fetchLabel} firmware…`);
     const res = await fetch(FIRMWARE_RAW(versionLabel, env));
-    if (res.status === 404) {
-      throw new Error(`no published ${versionLabel} build for ${env} yet — ask the maintainer to run the prebuild workflow`);
-    }
+    if (res.status === 404)
+      throw new Error(`no published build for ${fetchLabel} yet — run the prebuild workflow`);
     if (!res.ok) throw new Error(`firmware HTTP ${res.status}`);
     const generic = new Uint8Array(await res.arrayBuffer());
 
-    setStatus("configuring…");
-    const layout = await fetchLayout(dev);
-    const defines = buildDefines({ phrase: $("bld-phrase").value.trim(), domain });
-    const configured = appendConfig(generic,
-      { productName: dev.product_name, luaName: dev.lua_name, defines, layout });
+    let configured;
+    if (versionLabel === "rnode") {
+      configured = generic;          // pre-configured for the board; no configure.js step
+    } else {
+      setStatus("configuring…");
+      const target = selectedTarget();
+      const layout = await fetchLayout(target.dev);
+      const defines = buildDefines({ phrase: $("bld-phrase").value.trim(), domain: $("bld-domain").value });
+      configured = appendConfig(generic,
+        { productName: target.dev.product_name, luaName: target.dev.lua_name, defines, layout });
+    }
 
-    const label = `${versionLabel} · ${dev.product_name}`;
-    staged[slot] = { bytes: configured, label };
+    staged[slot] = { bytes: configured, label: fetchLabel };
     updateFlashButtons();
-    mm({ type: "staged", slot, label });   // shown on the flash-map diagram, not as text
+    mm({ type: "staged", slot, label: fetchLabel });
     setStatus("staged ✓ — Connect, then Flash staged");
-    log(`Staged ${label} (${domain}) → ${slot === 0 ? "app0" : "app1"} (${configured.length} bytes)`);
+    log(`Staged ${fetchLabel} → ${slot === 0 ? "app0" : "app1"} (${configured.length} bytes)`);
   } catch (e) {
     setStatus(`error: ${e.message || e}`);
     log(`Prepare error: ${e.message || e}`);
@@ -230,6 +248,11 @@ async function provisionBothStaged() {
 function init() {
   $("bld-domain").innerHTML = opts(DOMAINS.map((d) => [d, d]));
   $("bld-version").innerHTML = opts(Object.keys(BRANCHES).map((v) => [v, v]));
+  $("bld-rnode-board").innerHTML = opts(
+    Object.entries(RNODE_BOARDS).map(([label, env]) => [env, label])
+  );
+  $("bld-version").addEventListener("change", onVersionChange);
+  onVersionChange();
   $("bld-vendor").addEventListener("change", fillCategories);
   $("bld-category").addEventListener("change", fillDevices);
   $("bld-build").addEventListener("click", prepareAndStage);
