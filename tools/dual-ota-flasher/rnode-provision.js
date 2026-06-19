@@ -40,9 +40,13 @@ const KISS_FESC  = 0xDB;
 const KISS_TFEND = 0xDC;
 const KISS_TFESC = 0xDD;
 
-const CMD_ROM_WRITE       = 0x52;
-const CMD_CONF_SAVE       = 0x53;
-const ROM_WRITE_DELAY_MS  = 85;   // EEPROM.commit() time per byte
+const CMD_ROM_WRITE  = 0x52;
+const CMD_CONF_SAVE  = 0x53;
+const CMD_HASHES     = 0x60;  // query/report firmware hashes
+const CMD_FW_HASH    = 0x58;  // write firmware hash target to EEPROM (triggers hard_reset)
+
+const DEV_HASH_LEN       = 32;  // SHA-256
+const ROM_WRITE_DELAY_MS = 85;  // EEPROM.commit() time per byte
 
 export function packU32BE(v) {
   return [(v >>> 24) & 0xFF, (v >>> 16) & 0xFF, (v >>> 8) & 0xFF, v & 0xFF];
@@ -83,6 +87,45 @@ async function writeRom(writable, addr, value) {
   await sleep(ROM_WRITE_DELAY_MS);
 }
 
+// Read one KISS frame from port.readable matching expectedCmd.
+// Discards frames with other command bytes until timeout.
+async function readKissFrame(readable, expectedCmd, timeoutMs = 3000) {
+  const reader = readable.getReader();
+  try {
+    const deadline = Date.now() + timeoutMs;
+    let inFrame = false;
+    let frameCmd = null;
+    let frameData = [];
+    let escape = false;
+
+    while (Date.now() < deadline) {
+      const remaining = deadline - Date.now();
+      const { value, done } = await Promise.race([
+        reader.read(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), Math.min(remaining + 10, 500))),
+      ]);
+      if (done) break;
+      for (const b of value) {
+        if (b === KISS_FEND) {
+          if (inFrame && frameCmd === expectedCmd && frameData.length > 0) {
+            return new Uint8Array(frameData);
+          }
+          inFrame = true; frameCmd = null; frameData = []; escape = false;
+        } else if (inFrame) {
+          if (b === KISS_FESC) { escape = true; continue; }
+          const byte = escape ? (b === KISS_TFEND ? KISS_FEND : KISS_FESC) : b;
+          escape = false;
+          if (frameCmd === null) { frameCmd = byte; }
+          else                   { frameData.push(byte); }
+        }
+      }
+    }
+    throw new Error('timeout waiting for KISS response');
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 // Provision a LoRa32 v2.1 RNode device.
 // band: "433" → MODEL_B4 (433 MHz) | "868" → MODEL_B9 (868/915/923 MHz)
 // setStatus: (msg: string) => void — shown in the UI status line
@@ -107,7 +150,7 @@ export async function provisionRNode(band, setStatus) {
     const checksum    = deviceChecksum(PRODUCT_T32_21, model, 0x01, serialBytes, madeBytes);
 
     // 1 — product info (11 writes × 85 ms ≈ 1 s)
-    setStatus("Writing device info (1/4)…");
+    setStatus("Writing device info (1/5)…");
     log("RNode provision: writing product info");
     await writeRom(port.writable, ADDR_PRODUCT, PRODUCT_T32_21);
     await writeRom(port.writable, ADDR_MODEL,   model);
@@ -116,17 +159,17 @@ export async function provisionRNode(band, setStatus) {
     for (let i = 0; i < 4; i++) await writeRom(port.writable, ADDR_MADE   + i, madeBytes[i]);
 
     // 2 — checksum (16 writes × 85 ms ≈ 1.4 s)
-    setStatus("Writing checksum (2/4)…");
+    setStatus("Writing checksum (2/5)…");
     log("RNode provision: writing checksum");
     for (let i = 0; i < 16; i++) await writeRom(port.writable, ADDR_CHKSUM + i, checksum[i]);
 
     // 3 — signature zeroed (128 writes × 85 ms ≈ 11 s)
-    setStatus("Writing signature (3/4) — ~11 s…");
+    setStatus("Writing signature (3/5) — ~11 s…");
     log("RNode provision: writing signature (128 bytes, please wait)");
     for (let i = 0; i < 128; i++) await writeRom(port.writable, ADDR_SIGNATURE + i, 0x00);
 
     // 4 — radio config BEFORE locking (eeprom_write() rejects all writes once INFO_LOCK is set)
-    setStatus("Writing radio config (4/4)…");
+    setStatus("Writing radio config (4/5)…");
     log(`RNode provision: writing radio config — ${band === "433" ? "433 MHz" : "868/915 MHz"}, BW 125 kHz, SF ${DEFAULT_SF}`);
     await writeRom(port.writable, ADDR_CONF_SF,  DEFAULT_SF);
     await writeRom(port.writable, ADDR_CONF_CR,  DEFAULT_CR);
@@ -138,9 +181,19 @@ export async function provisionRNode(band, setStatus) {
     // Lock device info last — after this, CMD_ROM_WRITE is blocked for all addresses
     await writeRom(port.writable, ADDR_INFO_LOCK, INFO_LOCK_BYTE);
 
-    // save config
-    await portWrite(port.writable, kissFrame(CMD_CONF_SAVE, 0x00));
-    await sleep(500);
+    // 5 — firmware hash: read actual SHA-256 of running partition, write it back as target.
+    // device_save_firmware_hash() uses eeprom_update() (bypasses INFO_LOCK), then calls
+    // hard_reset() because fw_signature_validated is still false at this point.
+    // After the reboot the hash matches → firmware validated.
+    setStatus("Setting firmware hash (5/5) — device will reboot…");
+    log("RNode provision: reading firmware hash");
+    await portWrite(port.writable, kissFrame(CMD_HASHES, 0x02));
+    const fwHash = await readKissFrame(port.readable, CMD_HASHES);
+    if (fwHash.length !== DEV_HASH_LEN) throw new Error(`unexpected hash length ${fwHash.length}`);
+    log(`RNode provision: firmware hash ${Array.from(fwHash).map(b => b.toString(16).padStart(2,'0')).join('')}`);
+    await portWrite(port.writable, kissFrame(CMD_FW_HASH, ...fwHash));
+    // Device calls hard_reset() — serial port will go quiet; give it time to reboot
+    await sleep(3000);
 
     setStatus("");
     log(`RNode provision: done ✓  model ${band === "433" ? "B4" : "B9"} · ${band === "433" ? FREQ_433 : FREQ_868} Hz`);
