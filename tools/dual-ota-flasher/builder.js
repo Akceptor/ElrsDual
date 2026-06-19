@@ -162,6 +162,10 @@ async function readConfigFromSlot(slotAddr) {
   const dec = new TextDecoder();
   const cstr = (off, len) => dec.decode(blk.subarray(off, off + len)).replace(/\0[\s\S]*$/, "").trim();
   const product = cstr(0, 128);
+  // ELRS product names are printable ASCII (32–126).  Anything else means the config block
+  // is absent (RNode firmware, stock firmware, etc.) — return a non-ELRS sentinel so the
+  // caller can show a clean "non-ELRS" label instead of null (empty) or garbage.
+  if (!product || !/^[\x20-\x7e]+$/.test(product)) return { product: null, domain: null };
   let domain = null;
   try {
     const d = JSON.parse(cstr(144, 512) || "{}");
@@ -198,18 +202,19 @@ async function detectTarget() {
     const cfg = {};
     for (const s of [0, 1]) {
       cfg[s] = await readConfigFromSlot(addr[s]);
-      if (cfg[s] && cfg[s].product) {
-        const t = esp32.find((x) => x.dev.product_name === cfg[s].product);
-        // Reflect what's actually on the board in the flash-map diagram.
-        mm({ type: "flashed", slot: s, label: t ? t.dev.product_name : cfg[s].product });
+      if (cfg[s]) {
+        const t = cfg[s].product && esp32.find((x) => x.dev.product_name === cfg[s].product);
+        // null product = valid ESP32 image but no ELRS config block (RNode, stock, etc.)
+        const label = t ? t.dev.product_name : (cfg[s].product || "non-ELRS firmware");
+        mm({ type: "flashed", slot: s, label });
       }
     }
     mm({ type: "active", slot: active });
 
     // Pre-select the Configure form from the active slot's config (fallback to the other).
-    const pick = (cfg[active] && cfg[active].product) ? cfg[active] : (cfg[active ^ 1] || null);
+    const pick = (cfg[active] && cfg[active].product) ? cfg[active] : (cfg[active ^ 1] && cfg[active ^ 1].product ? cfg[active ^ 1] : null);
     const t = pick && esp32.find((x) => x.dev.product_name === pick.product);
-    log(`Detected: app0=${cfg[0]?.product || "—"} · app1=${cfg[1]?.product || "—"} · active=app${active}`);
+    log(`Detected: app0=${cfg[0]?.product || (cfg[0] ? "non-ELRS" : "—")} · app1=${cfg[1]?.product || (cfg[1] ? "non-ELRS" : "—")} · active=app${active}`);
     if (t) {
       selectTarget(t, pick.domain);
       setStatus(`detected: ${t.dev.product_name}${pick.domain ? " · " + pick.domain : ""}`);

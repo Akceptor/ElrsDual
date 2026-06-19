@@ -10,6 +10,7 @@ const OTADATA_SIZE = 0x2000;
 let transport = null;
 let esploader = null;
 let viaPassthrough = false;   // connected through an EdgeTX radio bridge?
+let lastPort = null;          // raw SerialPort — retained after disconnect so provision can reuse it
 
 const logEl = document.getElementById("log");
 // Empty log shows a Ukrainian-flag backdrop; reverts to the terminal once anything is logged.
@@ -26,6 +27,7 @@ logFlag(!logEl.textContent);
 const ACTION_IDS = ["connect", "detect", "flash", "flash0", "flash1", "read0", "read1", "active", "setslot", "flashboot",
   "bld-build", "bld-flash-staged-0", "bld-flash-staged-1", "bld-flash-staged-both"];
 export function isConnected() { return esploader !== null; }
+export function getLastPort() { return lastPort; }
 export { APP0_ADDR, APP1_ADDR };
 export function setBusy(busy, label) {
   for (const id of ACTION_IDS) {
@@ -77,6 +79,7 @@ function setConnUI(connected) {
 }
 
 async function disconnect() {
+  lastPort = transport?.device ?? lastPort;  // keep port reference for RNode provision reuse
   try { await transport?.disconnect(); } catch (_) {}
   esploader = null;
   transport = null;
@@ -137,6 +140,7 @@ document.getElementById("connect").addEventListener("click", async () => {
 
     transport = t;
     esploader = loader;
+    lastPort = port;
     viaPassthrough = isRadio;
     log("Connected: " + chip + "   [" + chipName + ", " + (mb ? mb + " MB flash" : "flash size unknown") +
         (isRadio ? ", via EdgeTX passthrough" : "") + "]");

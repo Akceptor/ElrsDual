@@ -1,5 +1,5 @@
 import { rawBytesMD5 } from "./md5.js";
-import { log } from "./flasher.js";
+import { log, getLastPort } from "./flasher.js";
 
 // EEPROM layout — matches liamcottle/rnode-flasher ROM class
 const ADDR_PRODUCT   = 0x00;
@@ -89,7 +89,10 @@ async function writeRom(writable, addr, value) {
 export async function provisionRNode(band, setStatus) {
   if (!navigator.serial) throw new Error("Web Serial not available");
 
-  const port = await navigator.serial.requestPort();
+  // Reuse the port from the esptool session (retained after flash/disconnect) so the
+  // user is not prompted to select a port again.  Fall back to requestPort() if none.
+  const knownPort = getLastPort();
+  const port = knownPort ?? await navigator.serial.requestPort();
   await port.open({ baudRate: 115200 });
 
   try {
