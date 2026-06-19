@@ -92,35 +92,36 @@ async function writeRom(writable, addr, value) {
 async function readKissFrame(readable, expectedCmd, timeoutMs = 3000) {
   const reader = readable.getReader();
   try {
-    const deadline = Date.now() + timeoutMs;
     let inFrame = false;
     let frameCmd = null;
     let frameData = [];
     let escape = false;
 
-    while (Date.now() < deadline) {
-      const remaining = deadline - Date.now();
-      const { value, done } = await Promise.race([
-        reader.read(),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), Math.min(remaining + 10, 500))),
-      ]);
-      if (done) break;
-      for (const b of value) {
-        if (b === KISS_FEND) {
-          if (inFrame && frameCmd === expectedCmd && frameData.length > 0) {
-            return new Uint8Array(frameData);
+    const readLoop = async () => {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) throw new Error('port closed');
+        for (const b of value) {
+          if (b === KISS_FEND) {
+            if (inFrame && frameCmd === expectedCmd && frameData.length > 0) {
+              return new Uint8Array(frameData);
+            }
+            inFrame = true; frameCmd = null; frameData = []; escape = false;
+          } else if (inFrame) {
+            if (b === KISS_FESC) { escape = true; continue; }
+            const byte = escape ? (b === KISS_TFEND ? KISS_FEND : KISS_FESC) : b;
+            escape = false;
+            if (frameCmd === null) { frameCmd = byte; }
+            else                   { frameData.push(byte); }
           }
-          inFrame = true; frameCmd = null; frameData = []; escape = false;
-        } else if (inFrame) {
-          if (b === KISS_FESC) { escape = true; continue; }
-          const byte = escape ? (b === KISS_TFEND ? KISS_FEND : KISS_FESC) : b;
-          escape = false;
-          if (frameCmd === null) { frameCmd = byte; }
-          else                   { frameData.push(byte); }
         }
       }
-    }
-    throw new Error('timeout waiting for KISS response');
+    };
+
+    return await Promise.race([
+      readLoop(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout waiting for KISS response')), timeoutMs)),
+    ]);
   } finally {
     reader.releaseLock();
   }
@@ -196,7 +197,7 @@ export async function provisionRNode(band, setStatus) {
     setStatus("Setting firmware hash (5/5) — device will reboot…");
     log("RNode provision: reading firmware hash");
     await portWrite(port.writable, kissFrame(CMD_HASHES, 0x02));
-    const fwHash = await readKissFrame(port.readable, CMD_HASHES);
+    const fwHash = await readKissFrame(port.readable, CMD_HASHES, 10000);
     if (fwHash.length !== DEV_HASH_LEN) throw new Error(`unexpected hash length ${fwHash.length}`);
     log(`RNode provision: firmware hash ${Array.from(fwHash).map(b => b.toString(16).padStart(2,'0')).join('')}`);
     await portWrite(port.writable, kissFrame(CMD_FW_HASH, ...fwHash));
