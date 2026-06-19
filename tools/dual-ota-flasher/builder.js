@@ -2,6 +2,7 @@ import { REPO, BRANCHES, ARTIFACT_BRANCH, TARGETS, DOMAINS, RNODE_BOARDS } from 
 import { flattenTargets, filterEsp32Targets, targetToEnv } from "./targets.js";
 import { buildDefines, appendConfig } from "./configure.js";
 import { flashData, flashFullProvision, log, isConnected, setBusy, readFlashBytes, readActiveSlot, APP0_ADDR, APP1_ADDR } from "./flasher.js";
+import { provisionRNode } from "./rnode-provision.js";
 
 const DOMAIN_BY_NUM = ["au_915", "fcc_915", "eu_868", "in_866", "au_433", "eu_433", "us_433", "us_433_wide"];
 
@@ -260,6 +261,20 @@ function init() {
   $("bld-flash-staged-0")?.addEventListener("click", () => flashStaged(0));
   $("bld-flash-staged-1")?.addEventListener("click", () => flashStaged(1));
   $("bld-flash-staged-both")?.addEventListener("click", provisionBothStaged);
+  $("btn-provision-rnode")?.addEventListener("click", async () => {
+    const band = (document.querySelector('input[name="rnode-band"]:checked') || {}).value || "868";
+    $("btn-provision-rnode").disabled = true;
+    try {
+      await provisionRNode(band, setStatus);
+      setStatus("RNode provisioned ✓");
+      log("RNode provisioned successfully");
+    } catch (e) {
+      setStatus("provision error: " + (e.message || e));
+      log("RNode provision error: " + (e.message || e));
+    } finally {
+      $("btn-provision-rnode").disabled = false;
+    }
+  });
   // Start from scratch on disconnect: drop staged images + clear status.
   document.addEventListener("ui-reset", () => {
     staged[0] = null;
