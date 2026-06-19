@@ -10,7 +10,7 @@ test("RNODE_BOARDS is non-empty", () => {
   assert.ok(Object.keys(RNODE_BOARDS).length > 0, "RNODE_BOARDS must have at least one entry");
 });
 
-test("RNODE_BOARDS values are valid PlatformIO env names (alphanumeric + underscore)", () => {
+test("RNODE_BOARDS values are valid CI artifact subdirectory names (alphanumeric + underscore)", () => {
   for (const [label, env] of Object.entries(RNODE_BOARDS)) {
     assert.match(env, /^[A-Za-z0-9_]+$/, `invalid env for "${label}": "${env}"`);
   }

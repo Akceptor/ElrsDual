@@ -130,13 +130,12 @@ Runs when `inputs.version == 'rnode'`. Differences from the ELRS `build` job:
 | Build working dir | `src/` | repo root |
 | Artifact name | `fw-<version>-<env>` | `fw-rnode-<env>` |
 
-Initial env matrix (exact names must be confirmed from the fork's `platformio.ini`):
+Initial env matrix (arduino-cli board short-name; must match the CI artifact subdirectory):
 
 ```yaml
 matrix:
   env:
-    - TTGO_LORA32_V21_SX1276   # LilyGo LoRa32 v2.1, 868/915 MHz
-    - TTGO_LORA32_V21_SX1278   # LilyGo LoRa32 v2.1, 433 MHz
+    - lora32_v21   # LilyGo LoRa32 v2.1, 868/915 MHz (SX1276 only — no SX1278 variant in the fork)
 ```
 
 Adding a new board later: one line in this matrix + one line in `RNODE_BOARDS` in `config.js`.
@@ -148,8 +147,7 @@ The existing `publish` job collects all `fw-*` artifacts and commits them to
 
 Artifact paths on `flasher-artifacts`:
 ```
-rnode/TTGO_LORA32_V21_SX1276/firmware.bin
-rnode/TTGO_LORA32_V21_SX1278/firmware.bin
+rnode/lora32_v21/firmware.bin
 ```
 
 The browser already constructs firmware URLs as `FIRMWARE_RAW(version, env)` →
@@ -174,10 +172,10 @@ export const BRANCHES = {
   "rnode":  null,
 };
 
-// Board display label → PlatformIO env. Must stay in sync with the CI matrix.
+// Board display label → CI artifact subdirectory (arduino-cli board short-name). Must stay in sync with build-rnode job in flasher-prebuild.yml.
 export const RNODE_BOARDS = {
-  "LilyGo LoRa32 v2.1 (SX1276 / 868–915 MHz)": "TTGO_LORA32_V21_SX1276",
-  "LilyGo LoRa32 v2.1 (SX1278 / 433 MHz)":    "TTGO_LORA32_V21_SX1278",
+  "LilyGo LoRa32 v2.1 (SX1276 / 868–915 MHz)": "lora32_v21",
+  // SX1278 (433 MHz) variant does not exist in the fork
 };
 ```
 
@@ -294,7 +292,7 @@ out of scope for this design.
 ## Verification
 
 1. Fork exists at `Akceptor/RNode_Firmware`; all four patches applied and building cleanly.
-2. `pio run -e TTGO_LORA32_V21_SX1276` (and SX1278) produce a `firmware.bin` ≤ 1.875 MB.
+2. `pio run -e lora32_v21` produces a `firmware.bin` ≤ 1.875 MB (SX1276 only — no SX1278 variant in the fork).
 3. Partition table in the fork is byte-identical to `min_spiffs.csv` in this repo.
 4. `workflow_dispatch` with `version: rnode` on `flasher-prebuild.yml` completes; bins
    appear on `flasher-artifacts` at `rnode/<env>/firmware.bin`.

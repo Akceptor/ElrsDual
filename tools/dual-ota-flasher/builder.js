@@ -92,7 +92,7 @@ async function prepareAndStage() {
     const target = selectedTarget();
     if (!target) { setStatus("no target selected"); return; }
     env = targetToEnv(target.dev);
-    fetchLabel = `${versionLabel} · ${target.dev.product_name}`;
+    fetchLabel = `${versionLabel} · ${target.dev.product_name} (${$("bld-domain").value})`;
   }
 
   $("bld-build").disabled = true;

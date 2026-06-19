@@ -116,6 +116,12 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
           echo "$HOME/bin" >> $GITHUB_PATH
 
+      - name: Cache ESP32 core
+        uses: actions/cache@v5
+        with:
+          path: ~/.arduino15
+          key: ${{ runner.os }}-arduino-esp32-2.0.17
+
       - name: Install ESP32 core
         run: |
           arduino-cli config init
@@ -130,9 +136,9 @@ jobs:
           cp -r . /tmp/RNode_Firmware
           arduino-cli compile \
             --fqbn esp32:esp32:ttgo-lora32 \
-            --build-property "build.partitions=min_spiffs" \
+            --build-property 'build.partitions.csv=/tmp/RNode_Firmware/min_spiffs.csv' \
             --build-property "upload.maximum_size=2097152" \
-            --build-property "compiler.cpp.extra_flags=\"-DBOARD_MODEL=0x37\"" \
+            --build-property 'compiler.cpp.extra_flags=-DBOARD_MODEL=0x37' \
             --output-dir /tmp/rnode-out \
             /tmp/RNode_Firmware
           mkdir -p "$RUNNER_TEMP/out/rnode/lora32_v21"

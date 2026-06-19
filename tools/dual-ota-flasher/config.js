@@ -19,7 +19,7 @@ export const BRANCHES = {
   "rnode":  null,   // built from Akceptor/RNode_Firmware, not this repo
 };
 
-// Board display label → PlatformIO env. Must stay in sync with build-rnode matrix in flasher-prebuild.yml.
+// Board display label → CI artifact subdirectory (arduino-cli board short-name). Must stay in sync with build-rnode job in flasher-prebuild.yml.
 export const RNODE_BOARDS = {
   "LilyGo LoRa32 v2.1 (SX1276 / 868–915 MHz)": "lora32_v21",
 };

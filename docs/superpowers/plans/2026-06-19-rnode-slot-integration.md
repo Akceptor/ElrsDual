@@ -45,7 +45,7 @@
 
   Note every env that targets `platform = espressif32` (i.e., is an ESP32 board). We patch only those.
 
-  Expected: you see envs like `[env:TTGO_LORA32_V21_SX1276]`, `[env:TTGO_LORA32_V21_SX1278]`, and possibly others. Skip STM32 / nRF envs.
+  Expected: you see an env like `[env:lora32_v21]` (SX1276 / 868–915 MHz only — no SX1278 variant in the fork), and possibly others. Skip STM32 / nRF envs.
 
 - [ ] **Step 3: Create `min_spiffs.csv`**
 
@@ -66,7 +66,7 @@
   For each ESP32 env identified in step 2, add `board_build.partitions = min_spiffs.csv` inside that env section. Example (repeat for each env):
 
   ```ini
-  [env:TTGO_LORA32_V21_SX1276]
+  [env:lora32_v21]
   board = ttgo-lora32-v21
   framework = arduino
   platform = espressif32
@@ -77,7 +77,7 @@
 - [ ] **Step 5: Verify the partition file is picked up**
 
   ```bash
-  pio run -e TTGO_LORA32_V21_SX1276 --target envdump 2>&1 | grep -i partition
+  pio run -e lora32_v21 --target envdump 2>&1 | grep -i partition
   ```
 
   Expected: output includes `min_spiffs.csv` in the partition path.
@@ -163,7 +163,7 @@
 - [ ] **Step 6: Build and check for compile errors**
 
   ```bash
-  pio run -e TTGO_LORA32_V21_SX1276 2>&1 | tail -20
+  pio run -e lora32_v21 2>&1 | tail -20
   ```
 
   Expected: `SUCCESS` with no errors. If `esp_ota_ops.h` is not found, add to `platformio.ini` under the env: `build_flags = -DARDUINO_ESP32_OTA`.
@@ -226,7 +226,7 @@
 - [ ] **Step 5: Build**
 
   ```bash
-  pio run -e TTGO_LORA32_V21_SX1276 2>&1 | tail -20
+  pio run -e lora32_v21 2>&1 | tail -20
   ```
 
   Expected: `SUCCESS`.
@@ -256,25 +256,23 @@
 
   Note the exact env names. They likely contain `V21` or `v21`. These are the values that must go into the CI matrix and `RNODE_BOARDS` in Task 6.
 
-- [ ] **Step 2: Build both envs**
+- [ ] **Step 2: Build the env**
 
   ```bash
-  pio run -e TTGO_LORA32_V21_SX1276
-  pio run -e TTGO_LORA32_V21_SX1278
+  pio run -e lora32_v21
   ```
 
-  (Replace the env names with what you found in step 1.)
+  (SX1276 / 868–915 MHz only — the SX1278 variant does not exist in the fork.)
 
-  Expected: both succeed.
+  Expected: succeeds.
 
-- [ ] **Step 3: Verify binary sizes are within the slot limit**
+- [ ] **Step 3: Verify binary size is within the slot limit**
 
   ```bash
-  ls -lh .pio/build/TTGO_LORA32_V21_SX1276/firmware.bin
-  ls -lh .pio/build/TTGO_LORA32_V21_SX1278/firmware.bin
+  ls -lh .pio/build/lora32_v21/firmware.bin
   ```
 
-  Expected: both < 1,966,080 bytes (1.875 MB = 0x1E0000). If either exceeds this, the firmware will not fit in a slot and must be trimmed before proceeding.
+  Expected: < 1,966,080 bytes (1.875 MB = 0x1E0000). If it exceeds this, the firmware will not fit in a slot and must be trimmed before proceeding.
 
 - [ ] **Step 4: Push fork to GitHub**
 
@@ -313,12 +311,6 @@
     build-rnode:
       runs-on: ubuntu-latest
       if: ${{ inputs.version == 'rnode' }}
-      strategy:
-        fail-fast: false
-        matrix:
-          env:
-            - TTGO_LORA32_V21_SX1276
-            - TTGO_LORA32_V21_SX1278
       steps:
         - uses: actions/checkout@v6
           with:
@@ -458,10 +450,10 @@
     "rnode":  null,   // built from Akceptor/RNode_Firmware, not this repo
   };
 
-  // Board display label → PlatformIO env. Must stay in sync with build-rnode matrix in flasher-prebuild.yml.
+  // Board display label → CI artifact subdirectory (arduino-cli board short-name). Must stay in sync with build-rnode job in flasher-prebuild.yml.
   export const RNODE_BOARDS = {
-    "LilyGo LoRa32 v2.1 (SX1276 / 868–915 MHz)": "TTGO_LORA32_V21_SX1276",
-    "LilyGo LoRa32 v2.1 (SX1278 / 433 MHz)":    "TTGO_LORA32_V21_SX1278",
+    "LilyGo LoRa32 v2.1 (SX1276 / 868–915 MHz)": "lora32_v21",
+    // SX1278 (433 MHz) variant does not exist in the fork
   };
   ```
 
