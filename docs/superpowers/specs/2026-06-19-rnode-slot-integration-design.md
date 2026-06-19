@@ -135,7 +135,7 @@ Initial env matrix (arduino-cli board short-name; must match the CI artifact sub
 ```yaml
 matrix:
   env:
-    - lora32_v21   # LilyGo LoRa32 v2.1, 868/915 MHz (SX1276 only — no SX1278 variant in the fork)
+    - lora32_v21   # LilyGo LoRa32 v2.1, 433–915 MHz (SX1276 only â no SX1278 variant in the fork)
 ```
 
 Adding a new board later: one line in this matrix + one line in `RNODE_BOARDS` in `config.js`.
@@ -174,7 +174,7 @@ export const BRANCHES = {
 
 // Board display label → CI artifact subdirectory (arduino-cli board short-name). Must stay in sync with build-rnode job in flasher-prebuild.yml.
 export const RNODE_BOARDS = {
-  "LilyGo LoRa32 v2.1 (SX1276 / 868–915 MHz)": "lora32_v21",
+  "LilyGo LoRa32 v2.1 (SX1276 / 433–915 MHz)": "lora32_v21",
   // SX1278 (433 MHz) variant does not exist in the fork
 };
 ```
