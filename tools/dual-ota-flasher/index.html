@@ -358,7 +358,7 @@
 
     <section class="step">
       <div class="step-head"><span class="badge tool">📡</span><h2 data-i18n="rnode_provision_h">RNode Provision</h2></div>
-      <p class="step-desc" data-i18n="rnode_provision_desc">Write EEPROM identity + radio config to a freshly flashed RNode device. Opens a second serial port — connect the board again when prompted.</p>
+      <p class="step-desc">Three-step process matching <a href="https://liamcottle.github.io/rnode-flasher/" target="_blank" rel="noopener">rnode-flasher</a>: Provision → Write firmware hash → Configure radio.</p>
       <div class="field">
         <label data-i18n="lbl_rnode_band">Band</label>
         <label><input type="radio" name="rnode-band" value="433"/> <span data-i18n="rnode_band_433">433 MHz</span></label>
@@ -366,9 +366,10 @@
       </div>
       <div class="actions">
         <div class="pair">
-          <button id="btn-provision-rnode" data-i18n="btn_provision_rnode">Provision RNode (~14 s)</button>
-          <button id="btn-rnode-fw-hash" data-i18n="btn_rnode_fw_hash">Write firmware hash</button>
+          <button id="btn-provision-rnode">① Provision RNode (~18 s)</button>
+          <button id="btn-rnode-fw-hash">② Write firmware hash</button>
         </div>
+        <button id="btn-rnode-radio">③ Configure radio</button>
       </div>
       <p id="rnode-status" style="margin:.4rem 0 0;font-size:.85rem;color:var(--accent)"></p>
     </section>

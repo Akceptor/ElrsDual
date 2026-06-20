@@ -1,6 +1,6 @@
 import { ESPLoader, Transport } from "./esptool-bundle.js";
 import { etxPassthrough } from "./passthrough.js";
-import { provisionRNode, writeRNodeFirmwareHash } from "./rnode-provision.js";
+import { provisionRNode, writeRNodeFirmwareHash, configureRNodeRadio } from "./rnode-provision.js";
 
 const APP0_ADDR = 0x10000;
 const APP1_ADDR = 0x1F0000;
@@ -27,7 +27,7 @@ logFlag(!logEl.textContent);
 
 const ACTION_IDS = ["connect", "detect", "flash", "flash0", "flash1", "read0", "read1", "active", "setslot", "flashboot",
   "bld-build", "bld-flash-staged-0", "bld-flash-staged-1", "bld-flash-staged-both",
-  "btn-provision-rnode", "btn-rnode-fw-hash"];
+  "btn-provision-rnode", "btn-rnode-fw-hash", "btn-rnode-radio"];
 export function isConnected() { return esploader !== null; }
 export function getLastPort() { return lastPort; }
 export { APP0_ADDR, APP1_ADDR };
@@ -471,6 +471,21 @@ document.getElementById("btn-rnode-fw-hash").addEventListener("click", async () 
   const setStatus = s => { if (statusEl) statusEl.textContent = s; };
   try {
     await writeRNodeFirmwareHash(setStatus);
+  } catch (e) {
+    log("RNode provision error: " + e.message);
+    setStatus("");
+  } finally {
+    setBusy(false);
+  }
+});
+
+document.getElementById("btn-rnode-radio").addEventListener("click", async () => {
+  const band = (document.querySelector('input[name="rnode-band"]:checked') || {}).value || "868";
+  setBusy(true, "configuring radio");
+  const statusEl = document.getElementById("rnode-status");
+  const setStatus = s => { if (statusEl) statusEl.textContent = s; };
+  try {
+    await configureRNodeRadio(band, setStatus);
   } catch (e) {
     log("RNode provision error: " + e.message);
     setStatus("");
