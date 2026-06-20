@@ -164,7 +164,7 @@ export async function provisionRNode(band, setStatus) {
     const checksum    = deviceChecksum(PRODUCT_T32_21, model, 0x01, serialBytes, madeBytes);
 
     // 1 — product info (11 writes × 85 ms ≈ 1 s)
-    setStatus("Writing device info (1/6)…");
+    setStatus("Writing device info (1/5)…");
     log("RNode provision: writing product info");
     await writeRom(port.writable, ADDR_PRODUCT, PRODUCT_T32_21);
     await writeRom(port.writable, ADDR_MODEL,   model);
@@ -173,17 +173,17 @@ export async function provisionRNode(band, setStatus) {
     for (let i = 0; i < 4; i++) await writeRom(port.writable, ADDR_MADE   + i, madeBytes[i]);
 
     // 2 — checksum (16 writes × 85 ms ≈ 1.4 s)
-    setStatus("Writing checksum (2/6)…");
+    setStatus("Writing checksum (2/5)…");
     log("RNode provision: writing checksum");
     for (let i = 0; i < 16; i++) await writeRom(port.writable, ADDR_CHKSUM + i, checksum[i]);
 
     // 3 — signature zeroed (128 writes × 85 ms ≈ 11 s)
-    setStatus("Writing signature (3/6) — ~11 s…");
+    setStatus("Writing signature (3/5) — ~11 s…");
     log("RNode provision: writing signature (128 bytes, please wait)");
     for (let i = 0; i < 128; i++) await writeRom(port.writable, ADDR_SIGNATURE + i, 0x00);
 
     // 4 — radio config BEFORE locking (eeprom_write() rejects all writes once INFO_LOCK is set)
-    setStatus("Writing radio config (4/6)…");
+    setStatus("Writing radio config (4/5)…");
     log(`RNode provision: writing radio config — ${band === "433" ? "433 MHz" : "868/915 MHz"}, BW 125 kHz, SF ${DEFAULT_SF}`);
     await writeRom(port.writable, ADDR_CONF_SF,  DEFAULT_SF);
     await writeRom(port.writable, ADDR_CONF_CR,  DEFAULT_CR);
@@ -196,32 +196,61 @@ export async function provisionRNode(band, setStatus) {
     await writeRom(port.writable, ADDR_INFO_LOCK, INFO_LOCK_BYTE);
 
     // 5 — reboot so device_init() → device_validate_partitions() runs with INFO_LOCK set.
-    // Until this reboot, dev_firmware_hash is all-zeros (never computed). After it, the
-    // device hashes the running partition and stores the result in dev_firmware_hash.
-    setStatus("Rebooting device for hash computation (5/6) — ~4 s…");
-    log("RNode provision: rebooting device to compute firmware hash");
+    // Until this reboot, dev_firmware_hash is all-zeros (never computed). After it the
+    // device hashes the running partition into dev_firmware_hash so CMD_HASHES returns it.
+    setStatus("Rebooting device (5/5) — wait ~5 s then click Write firmware hash…");
+    log("RNode provision: rebooting device — wait for it to boot, then click Write firmware hash");
     await portWrite(port.writable, kissFrame(CMD_RESET, CMD_RESET_BYTE));
-    await sleep(4000);  // wait for ESP32 to reboot and run device_validate_partitions()
 
-    // 6 — firmware hash: read actual SHA-256 of running partition, write it back as target.
-    // kiss_indicate_fw_hash() sends: FEND, CMD_HASHES(0x60), 0x02, [32 hash bytes], FEND
-    // readKissFrame returns frameData = [0x02, hash_bytes…] (33 bytes) — slice off sub-cmd.
-    // device_save_firmware_hash() uses eeprom_update() (bypasses INFO_LOCK), then calls
-    // hard_reset() because fw_signature_validated is still false at this point.
-    // After that reboot the target matches → firmware validated.
-    setStatus("Setting firmware hash (6/6) — device will reboot…");
+    log(`RNode provision: EEPROM written ✓  model ${band === "433" ? "B4" : "B9"} · ${band === "433" ? FREQ_433 : FREQ_868} Hz`);
+  } finally {
+    if (shouldClose) try { await port.close(); } catch (_) {}
+  }
+}
+
+// Write the running firmware hash to EEPROM as the target hash.
+// Call this after provisionRNode() once the device has finished booting (~5 s).
+// Mirrors what https://liamcottle.github.io/rnode-flasher does:
+//   1. Send CMD_HASHES/0x02 → device responds with its computed SHA-256
+//   2. Send CMD_FW_HASH with that hash → device saves it and calls hard_reset()
+//   3. After reboot the target matches the running hash → firmware validated
+export async function writeRNodeFirmwareHash(setStatus) {
+  if (!navigator.serial) throw new Error("Web Serial not available");
+
+  if (isConnected()) await releaseEsptool();
+
+  const knownPort = getLastPort();
+  const port = knownPort ?? await navigator.serial.requestPort();
+
+  let shouldClose = false;
+  if (port.readable === null) {
+    await port.open({ baudRate: 115200 });
+    await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+    await sleep(2000);
+    shouldClose = true;
+  }
+
+  try {
+    setStatus("Reading firmware hash…");
     log("RNode provision: reading firmware hash");
     await portWrite(port.writable, kissFrame(CMD_HASHES, 0x02));
+
+    // kiss_indicate_fw_hash() sends: FEND, CMD_HASHES(0x60), 0x02, [32 bytes escaped], FEND
+    // readKissFrame strips the outer FENDs and command byte, so frameData = [0x02, hash×32]
     const fwHashFrame = await readKissFrame(port.readable, CMD_HASHES, 10000);
     if (fwHashFrame.length !== DEV_HASH_LEN + 1) throw new Error(`unexpected hash frame length ${fwHashFrame.length}`);
     const fwHash = fwHashFrame.slice(1);  // drop 0x02 sub-command byte
     log(`RNode provision: firmware hash ${Array.from(fwHash).map(b => b.toString(16).padStart(2,'0')).join('')}`);
+
+    setStatus("Writing firmware hash — device will reboot…");
+    log("RNode provision: writing firmware hash (device will reboot)");
     await portWrite(port.writable, kissFrame(CMD_FW_HASH, ...fwHash));
-    // Device calls hard_reset() — serial port will go quiet; give it time to reboot
+    // device_save_firmware_hash() calls hard_reset() because fw_signature_validated is false.
+    // After reboot the target matches → fully validated.
     await sleep(3000);
 
     setStatus("");
-    log(`RNode provision: done ✓  model ${band === "433" ? "B4" : "B9"} · ${band === "433" ? FREQ_433 : FREQ_868} Hz`);
+    log("RNode provision: firmware hash written ✓  device rebooted and validated");
   } finally {
     if (shouldClose) try { await port.close(); } catch (_) {}
   }

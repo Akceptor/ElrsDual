@@ -365,8 +365,12 @@
         <label><input type="radio" name="rnode-band" value="868" checked/> <span data-i18n="rnode_band_868">868 / 915 MHz</span></label>
       </div>
       <div class="actions">
-        <button id="btn-provision-rnode" data-i18n="btn_provision_rnode">Provision RNode (~14 s)</button>
+        <div class="pair">
+          <button id="btn-provision-rnode" data-i18n="btn_provision_rnode">Provision RNode (~14 s)</button>
+          <button id="btn-rnode-fw-hash" data-i18n="btn_rnode_fw_hash">Write firmware hash</button>
+        </div>
       </div>
+      <p id="rnode-status" style="margin:.4rem 0 0;font-size:.85rem;color:var(--accent)"></p>
     </section>
   </div>
 
