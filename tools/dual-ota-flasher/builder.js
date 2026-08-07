@@ -185,6 +185,14 @@ async function readConfigFromSlot(slotAddr) {
   return { product, domain };
 }
 
+// Meshtastic OTA images have no ELRS config block, but both prebuilt sync-word variants
+// contain the literal ASCII string "meshtastic" ~10.7KB in — well within a cheap partial
+// flash read. Only called from the non-ELRS sentinel branch in detectTarget().
+async function isMeshtasticImage(addr) {
+  const chunk = await readFlashBytes(addr, 0x4000);
+  return chunk ? bytesIndexOf(chunk, "meshtastic") >= 0 : false;
+}
+
 function selectTarget(target, domain) {
   $("bld-vendor").value = target.mfr;
   fillCategories();
@@ -211,12 +219,15 @@ async function detectTarget() {
     const active = await readActiveSlot();
     const addr = { 0: APP0_ADDR, 1: APP1_ADDR };
     const cfg = {};
+    const labels = {};
     for (const s of [0, 1]) {
       cfg[s] = await readConfigFromSlot(addr[s]);
       if (cfg[s]) {
         const t = cfg[s].product && esp32.find((x) => x.dev.product_name === cfg[s].product);
-        // null product = valid ESP32 image but no ELRS config block (RNode, stock, etc.)
-        const label = t ? t.dev.product_name : (cfg[s].product || "non-ELRS firmware");
+        // null product = valid ESP32 image but no ELRS config block (RNode, stock, Meshtastic, etc.)
+        let label = t ? t.dev.product_name : (cfg[s].product || "non-ELRS firmware");
+        if (!t && !cfg[s].product && (await isMeshtasticImage(addr[s]))) label = "Meshtastic firmware";
+        labels[s] = label;
         mm({ type: "flashed", slot: s, label });
       }
     }
@@ -225,7 +236,7 @@ async function detectTarget() {
     // Pre-select the Configure form from the active slot's config (fallback to the other).
     const pick = (cfg[active] && cfg[active].product) ? cfg[active] : (cfg[active ^ 1] && cfg[active ^ 1].product ? cfg[active ^ 1] : null);
     const t = pick && esp32.find((x) => x.dev.product_name === pick.product);
-    log(`Detected: app0=${cfg[0]?.product || (cfg[0] ? "non-ELRS" : "—")} · app1=${cfg[1]?.product || (cfg[1] ? "non-ELRS" : "—")} · active=app${active}`);
+    log(`Detected: app0=${labels[0] || "—"} · app1=${labels[1] || "—"} · active=app${active}`);
     if (t) {
       selectTarget(t, pick.domain);
       setStatus(`detected: ${t.dev.product_name}${pick.domain ? " · " + pick.domain : ""}`);
