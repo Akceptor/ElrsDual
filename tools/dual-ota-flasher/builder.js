@@ -1,4 +1,4 @@
-import { REPO, BRANCHES, ARTIFACT_BRANCH, TARGETS, DOMAINS, RNODE_BOARDS, MESHTASTIC_REPO, MESHTASTIC_FIRMWARE } from "./config.js";
+import { REPO, BRANCHES, ARTIFACT_BRANCH, TARGETS, DOMAINS, RNODE_BOARDS, MESHTASTIC_REPO, MESHTASTIC_BOARDS, MESHTASTIC_FIRMWARE } from "./config.js";
 import { flattenTargets, filterEsp32Targets, targetToEnv } from "./targets.js";
 import { buildDefines, appendConfig } from "./configure.js";
 import { flashData, flashFullProvision, log, isConnected, setBusy, readFlashBytes, readActiveSlot, APP0_ADDR, APP1_ADDR } from "./flasher.js";
@@ -95,7 +95,9 @@ async function prepareAndStage() {
     const sel = $("bld-rnode-board");
     fetchLabel = `RNode · ${sel.options[sel.selectedIndex].text}`;
   } else if (versionLabel === "meshtastic") {
-    fetchLabel = "Meshtastic · sync " + $("bld-meshtastic-sync").value;
+    const boardSelect = $("bld-meshtastic-board");
+    fetchLabel = "Meshtastic · " + boardSelect.options[boardSelect.selectedIndex].text
+      + " · sync " + $("bld-meshtastic-sync").value;
   } else {
     const target = selectedTarget();
     if (!target) { setStatus("no target selected"); return; }
@@ -107,7 +109,7 @@ async function prepareAndStage() {
   try {
     setStatus(`fetching ${fetchLabel} firmware…`);
     const res = versionLabel === "meshtastic"
-      ? await fetch(MESHTASTIC_RAW(MESHTASTIC_FIRMWARE[$("bld-meshtastic-sync").value]))
+      ? await fetch(MESHTASTIC_RAW(MESHTASTIC_FIRMWARE[$("bld-meshtastic-board").value][$("bld-meshtastic-sync").value]))
       : await fetch(FIRMWARE_RAW(versionLabel, env));
     if (res.status === 404)
       throw new Error(`no published build for ${fetchLabel} yet — run the prebuild workflow`);
@@ -265,6 +267,9 @@ function init() {
   $("bld-version").innerHTML = opts(Object.keys(BRANCHES).map((v) => [v, v]));
   $("bld-rnode-board").innerHTML = opts(
     Object.entries(RNODE_BOARDS).map(([label, env]) => [env, label])
+  );
+  $("bld-meshtastic-board").innerHTML = opts(
+    Object.entries(MESHTASTIC_BOARDS).map(([label, key]) => [key, label])
   );
   $("bld-version").addEventListener("change", onVersionChange);
   onVersionChange();

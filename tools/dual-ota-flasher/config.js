@@ -25,14 +25,22 @@ export const RNODE_BOARDS = {
   "LilyGo LoRa32 v2.1 (SX1276 / 433–915 MHz)": "lora32_v21",
 };
 
-// Pre-built Meshtastic app-only ("OTA") firmware for the EMAX 900 OLED TX board.
+// Pre-built Meshtastic app-only ("OTA") firmware.
 // Published at https://github.com/Akceptor/meshtastic_firmware/tree/develop-2.7.26/prebuilt
 export const MESHTASTIC_REPO = { owner: "Akceptor", repo: "meshtastic_firmware", ref: "develop-2.7.26" };
 
-// Sync-word select value -> prebuilt firmware filename.
+// Board display label -> board key. Add an entry here (plus a matching entry in
+// MESHTASTIC_FIRMWARE below) to support another board — no code changes needed.
+export const MESHTASTIC_BOARDS = {
+  "EMAX 900 OLED TX": "emax_900_tx_oled",
+};
+
+// Board key -> sync-word select value -> prebuilt firmware filename.
 export const MESHTASTIC_FIRMWARE = {
-  "0x2b": "firmware-emax_900_tx_oled-2.7.26.8f1666d-sync0x2b.ota.bin",
-  "0x12": "firmware-emax_900_tx_oled-2.7.26.8f1666d-sync0x12.ota.bin",
+  emax_900_tx_oled: {
+    "0x2b": "firmware-emax_900_tx_oled-2.7.26.8f1666d-sync0x2b.ota.bin",
+    "0x12": "firmware-emax_900_tx_oled-2.7.26.8f1666d-sync0x12.ota.bin",
+  },
 };
 
 export const DOMAINS = ["eu_868", "fcc_915", "au_915", "in_866", "au_433", "eu_433", "us_433", "us_433_wide"];
