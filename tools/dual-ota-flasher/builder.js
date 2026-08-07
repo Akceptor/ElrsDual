@@ -192,6 +192,8 @@ async function readConfigFromSlot(slotAddr) {
 // cover that range while still being a single bounded flash read. Only called from the
 // non-ELRS sentinel branch in detectTarget().
 async function isMeshtasticImage(addr) {
+  setStatus("checking for Meshtastic signature…");
+  log("Scanning slot for Meshtastic signature (this can take a few seconds)…");
   const chunk = await readFlashBytes(addr, 0x40000);
   return chunk ? bytesIndexOf(chunk, "meshtastic") >= 0 : false;
 }
