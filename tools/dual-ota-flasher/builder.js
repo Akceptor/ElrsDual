@@ -185,11 +185,14 @@ async function readConfigFromSlot(slotAddr) {
   return { product, domain };
 }
 
-// Meshtastic OTA images have no ELRS config block, but both prebuilt sync-word variants
-// contain the literal ASCII string "meshtastic" ~10.7KB in — well within a cheap partial
-// flash read. Only called from the non-ELRS sentinel branch in detectTarget().
+// Meshtastic OTA images have no ELRS config block, but they contain the literal ASCII
+// string "meshtastic" somewhere in the image — e.g. ~10.7KB in for the two prebuilt
+// sync-word variants this repo ships, but as far as ~175KB in for other boards/versions.
+// The offset varies, so the read window is intentionally generous (256KB) to comfortably
+// cover that range while still being a single bounded flash read. Only called from the
+// non-ELRS sentinel branch in detectTarget().
 async function isMeshtasticImage(addr) {
-  const chunk = await readFlashBytes(addr, 0x4000);
+  const chunk = await readFlashBytes(addr, 0x40000);
   return chunk ? bytesIndexOf(chunk, "meshtastic") >= 0 : false;
 }
 
