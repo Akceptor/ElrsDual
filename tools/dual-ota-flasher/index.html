@@ -154,10 +154,25 @@
   .busy-bar { position: fixed; top: 0; left: 0; width: 100%; z-index: 1000; height: 4px; overflow: hidden; background: var(--line); }
   .busy-bar-fill { width: 30%; height: 100%; background: var(--accent); border-radius: 2px; animation: busy-slide 1.2s ease-in-out infinite; }
   @keyframes busy-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }
+
+  .scan-indicator { position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+    background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+    padding: 6px 14px; font-size: .85rem; color: var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,.15);
+    z-index: 1001; display: flex; align-items: center; gap: 6px; }
+  .glass-icon { display: inline-block; animation: glass-search 1.4s ease-in-out infinite; }
+  @keyframes glass-search {
+    0%, 100% { transform: translate(0,0) rotate(0deg); }
+    25% { transform: translate(3px,-2px) rotate(-10deg); }
+    50% { transform: translate(-2px,2px) rotate(8deg); }
+    75% { transform: translate(2px,2px) rotate(-6deg); }
+  }
 </style>
 </head>
 <body>
   <div id="busy-bar" class="busy-bar" hidden><div class="busy-bar-fill"></div></div>
+  <div id="scan-indicator" class="scan-indicator" hidden>
+    <span class="glass-icon">🔍</span> <span data-i18n="scan_looking">Looking for firmware signature</span>…
+  </div>
   <div class="topbar">
     <button id="theme-toggle" class="icon-toggle" title="Theme" aria-label="Theme">🌙</button>
     <h1>ELRS Dual-OTA Flasher</h1>

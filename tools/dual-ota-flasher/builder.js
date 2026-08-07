@@ -194,8 +194,14 @@ async function readConfigFromSlot(slotAddr) {
 async function isMeshtasticImage(addr) {
   setStatus("checking for Meshtastic signature…");
   log("Scanning slot for Meshtastic signature (this can take a few seconds)…");
-  const chunk = await readFlashBytes(addr, 0x40000);
-  return chunk ? bytesIndexOf(chunk, "meshtastic") >= 0 : false;
+  const indicator = document.getElementById("scan-indicator");
+  if (indicator) indicator.hidden = false;
+  try {
+    const chunk = await readFlashBytes(addr, 0x40000);
+    return chunk ? bytesIndexOf(chunk, "meshtastic") >= 0 : false;
+  } finally {
+    if (indicator) indicator.hidden = true;
+  }
 }
 
 function selectTarget(target, domain) {
