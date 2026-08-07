@@ -38,6 +38,8 @@ export function setBusy(busy, label) {
   }
   const act = document.getElementById("log-activity");
   if (act) act.textContent = busy && label ? " (" + label + ")" : "";
+  const bar = document.getElementById("busy-bar");
+  if (bar) bar.hidden = !busy;
   // Let builder.js re-apply staging constraints (which staged buttons should stay disabled).
   if (window.onBusyChange) window.onBusyChange(busy);
 }
