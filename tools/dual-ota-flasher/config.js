@@ -17,11 +17,22 @@ export const BRANCHES = {
   "v4.0.1": "lua-slot/v4",
   "v3.6.3": "lua-slot/v3.6.3",
   "rnode":  null,   // built from Akceptor/RNode_Firmware, not this repo
+  "meshtastic": null,   // pre-built binaries from Akceptor/meshtastic_firmware, not this repo
 };
 
 // Board display label → CI artifact subdirectory (arduino-cli board short-name). Must stay in sync with build-rnode job in flasher-prebuild.yml.
 export const RNODE_BOARDS = {
   "LilyGo LoRa32 v2.1 (SX1276 / 433–915 MHz)": "lora32_v21",
+};
+
+// Pre-built Meshtastic app-only ("OTA") firmware for the EMAX 900 OLED TX board.
+// Published at https://github.com/Akceptor/meshtastic_firmware/tree/develop-2.7.26/prebuilt
+export const MESHTASTIC_REPO = { owner: "Akceptor", repo: "meshtastic_firmware", ref: "develop-2.7.26" };
+
+// Sync-word select value -> prebuilt firmware filename.
+export const MESHTASTIC_FIRMWARE = {
+  "0x2b": "firmware-emax_900_tx_oled-2.7.26.8f1666d-sync0x2b.ota.bin",
+  "0x12": "firmware-emax_900_tx_oled-2.7.26.8f1666d-sync0x12.ota.bin",
 };
 
 export const DOMAINS = ["eu_868", "fcc_915", "au_915", "in_866", "au_433", "eu_433", "us_433", "us_433_wide"];

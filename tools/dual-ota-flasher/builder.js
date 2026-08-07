@@ -1,4 +1,4 @@
-import { REPO, BRANCHES, ARTIFACT_BRANCH, TARGETS, DOMAINS, RNODE_BOARDS } from "./config.js";
+import { REPO, BRANCHES, ARTIFACT_BRANCH, TARGETS, DOMAINS, RNODE_BOARDS, MESHTASTIC_REPO, MESHTASTIC_FIRMWARE } from "./config.js";
 import { flattenTargets, filterEsp32Targets, targetToEnv } from "./targets.js";
 import { buildDefines, appendConfig } from "./configure.js";
 import { flashData, flashFullProvision, log, isConnected, setBusy, readFlashBytes, readActiveSlot, APP0_ADDR, APP1_ADDR } from "./flasher.js";
@@ -13,6 +13,8 @@ const TARGETS_RAW = (path) =>
   `https://raw.githubusercontent.com/${TARGETS.owner}/${TARGETS.repo}/${TARGETS.ref}/${encPath(path)}`;
 const FIRMWARE_RAW = (version, env) =>
   `https://raw.githubusercontent.com/${REPO.owner}/${REPO.repo}/${ARTIFACT_BRANCH}/${encPath(`${version}/${env}/firmware.bin`)}`;
+const MESHTASTIC_RAW = (file) =>
+  `https://raw.githubusercontent.com/${MESHTASTIC_REPO.owner}/${MESHTASTIC_REPO.repo}/${MESHTASTIC_REPO.ref}/${encPath(`prebuilt/${file}`)}`;
 
 const staged = { 0: null, 1: null };
 let esp32 = [];
@@ -20,9 +22,12 @@ let esp32 = [];
 const $ = (id) => document.getElementById(id);
 
 function onVersionChange() {
-  const isRNode = $("bld-version").value === "rnode";
-  $("elrs-fields").hidden = isRNode;
+  const version = $("bld-version").value;
+  const isRNode = version === "rnode";
+  const isMeshtastic = version === "meshtastic";
+  $("elrs-fields").hidden = isRNode || isMeshtastic;
   $("rnode-fields").hidden = !isRNode;
+  $("meshtastic-fields").hidden = !isMeshtastic;
 }
 
 const setStatus = (m) => { $("bld-status").textContent = m; };
@@ -89,6 +94,8 @@ async function prepareAndStage() {
     env = $("bld-rnode-board").value;
     const sel = $("bld-rnode-board");
     fetchLabel = `RNode · ${sel.options[sel.selectedIndex].text}`;
+  } else if (versionLabel === "meshtastic") {
+    fetchLabel = "Meshtastic · sync " + $("bld-meshtastic-sync").value;
   } else {
     const target = selectedTarget();
     if (!target) { setStatus("no target selected"); return; }
@@ -99,14 +106,16 @@ async function prepareAndStage() {
   $("bld-build").disabled = true;
   try {
     setStatus(`fetching ${fetchLabel} firmware…`);
-    const res = await fetch(FIRMWARE_RAW(versionLabel, env));
+    const res = versionLabel === "meshtastic"
+      ? await fetch(MESHTASTIC_RAW(MESHTASTIC_FIRMWARE[$("bld-meshtastic-sync").value]))
+      : await fetch(FIRMWARE_RAW(versionLabel, env));
     if (res.status === 404)
       throw new Error(`no published build for ${fetchLabel} yet — run the prebuild workflow`);
     if (!res.ok) throw new Error(`firmware HTTP ${res.status}`);
     const generic = new Uint8Array(await res.arrayBuffer());
 
     let configured;
-    if (versionLabel === "rnode") {
+    if (versionLabel === "rnode" || versionLabel === "meshtastic") {
       configured = generic;          // pre-configured for the board; no configure.js step
     } else {
       setStatus("configuring…");
@@ -259,6 +268,9 @@ function init() {
   );
   $("bld-version").addEventListener("change", onVersionChange);
   onVersionChange();
+  $("bld-meshtastic-sync")?.addEventListener("change", () => {
+    $("meshtastic-sync-warning").hidden = $("bld-meshtastic-sync").value !== "0x12";
+  });
   $("bld-vendor").addEventListener("change", fillCategories);
   $("bld-category").addEventListener("change", fillDevices);
   $("bld-build").addEventListener("click", prepareAndStage);

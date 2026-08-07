@@ -260,6 +260,16 @@
         <div class="ff"><label for="bld-rnode-board" data-i18n="lbl_rnode_board">Board</label>
           <select id="bld-rnode-board"></select></div>
       </div>
+      <div id="meshtastic-fields" hidden>
+        <div class="ff"><label for="bld-meshtastic-sync" data-i18n="lbl_meshtastic_sync">Sync word</label>
+          <select id="bld-meshtastic-sync">
+            <option value="0x2b" selected>0x2b — stock Meshtastic (talks to any stock node)</option>
+            <option value="0x12">0x12 — LR11xx-compatible (all mesh nodes must use this override)</option>
+          </select></div>
+        <p id="meshtastic-sync-warning" class="warn" hidden data-i18n="warn_meshtastic_sync">
+          Nodes flashed with 0x12 cannot talk to stock Meshtastic nodes. Every node in the mesh must
+          use this same override. Only needed if your mesh includes LR1121/LR1110/LR1120 hardware.</p>
+      </div>
       <div class="ff"><label for="bld-slot" data-i18n="lbl_slot">Stage into slot</label>
         <select id="bld-slot">
           <option value="1">app1</option>
