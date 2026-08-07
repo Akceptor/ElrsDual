@@ -151,12 +151,13 @@
               border-radius:999px; background:var(--ok); color:#fff; }
   .mm-badge.show { display:inline-block; }
 
-  .busy-bar { height: 4px; border-radius: 2px; overflow: hidden; margin: 4px 0 0; background: var(--line); }
+  .busy-bar { position: fixed; top: 0; left: 0; width: 100%; z-index: 1000; height: 4px; overflow: hidden; background: var(--line); }
   .busy-bar-fill { width: 30%; height: 100%; background: var(--accent); border-radius: 2px; animation: busy-slide 1.2s ease-in-out infinite; }
   @keyframes busy-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }
 </style>
 </head>
 <body>
+  <div id="busy-bar" class="busy-bar" hidden><div class="busy-bar-fill"></div></div>
   <div class="topbar">
     <button id="theme-toggle" class="icon-toggle" title="Theme" aria-label="Theme">🌙</button>
     <h1>ELRS Dual-OTA Flasher</h1>
@@ -392,7 +393,6 @@
   </div>
 
   <h2 style="font-size:1rem;margin:24px 0 0"><span data-i18n="log">Log</span><span id="log-activity" class="log-act"></span></h2>
-  <div id="busy-bar" class="busy-bar" hidden><div class="busy-bar-fill"></div></div>
   <pre id="log"></pre>
 
   <a class="explainer" href="https://youtu.be/NJ21E1bgmrA" target="_blank" rel="noopener"
