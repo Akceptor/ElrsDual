@@ -158,7 +158,9 @@
   .scan-indicator { position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
     background: var(--card); border: 1px solid var(--line); border-radius: 20px;
     padding: 6px 14px; font-size: .85rem; color: var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,.15);
-    z-index: 1001; display: flex; align-items: center; gap: 6px; }
+    z-index: 1001; align-items: center; gap: 6px; }
+  .scan-indicator[hidden] { display: none; }
+  .scan-indicator:not([hidden]) { display: flex; }
   .glass-icon { display: inline-block; animation: glass-search 1.4s ease-in-out infinite; }
   @keyframes glass-search {
     0%, 100% { transform: translate(0,0) rotate(0deg); }
