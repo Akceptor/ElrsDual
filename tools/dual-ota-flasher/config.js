@@ -35,12 +35,12 @@ export const MESHTASTIC_BOARDS = {
   "EMAX 900 OLED TX": "emax_900_tx_oled",
 };
 
-// Board key -> sync-word select value -> prebuilt firmware filename.
+// Board key -> firmware filename pattern (the commit-hash segment varies with every
+// upstream rebuild, so it's a wildcard resolved at runtime against the prebuilt/ listing —
+// see resolveMeshtasticFilename in builder.js). {sync} is substituted with the selected
+// sync-word value.
 export const MESHTASTIC_FIRMWARE = {
-  emax_900_tx_oled: {
-    "0x2b": "firmware-emax_900_tx_oled-2.7.26.8f1666d-sync0x2b.ota.bin",
-    "0x12": "firmware-emax_900_tx_oled-2.7.26.8f1666d-sync0x12.ota.bin",
-  },
+  emax_900_tx_oled: "firmware-emax_900_tx_oled-2.7.26.*-sync{sync}.ota.bin",
 };
 
 export const DOMAINS = ["eu_868", "fcc_915", "au_915", "in_866", "au_433", "eu_433", "us_433", "us_433_wide"];

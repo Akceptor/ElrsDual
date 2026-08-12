@@ -16,6 +16,23 @@ const FIRMWARE_RAW = (version, env) =>
 const MESHTASTIC_RAW = (file) =>
   `https://raw.githubusercontent.com/${MESHTASTIC_REPO.owner}/${MESHTASTIC_REPO.repo}/${MESHTASTIC_REPO.ref}/${encPath(`prebuilt/${file}`)}`;
 
+// The commit-hash segment in MESHTASTIC_FIRMWARE filenames changes on every upstream
+// rebuild, so resolve the wildcard against the actual prebuilt/ directory listing.
+let meshtasticListingCache = null;
+async function resolveMeshtasticFilename(board, sync) {
+  if (!meshtasticListingCache) {
+    const url = `https://api.github.com/repos/${MESHTASTIC_REPO.owner}/${MESHTASTIC_REPO.repo}/contents/prebuilt?ref=${encodeURIComponent(MESHTASTIC_REPO.ref)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`meshtastic listing HTTP ${res.status}`);
+    meshtasticListingCache = (await res.json()).map((entry) => entry.name);
+  }
+  const pattern = MESHTASTIC_FIRMWARE[board].replace("{sync}", sync);
+  const re = new RegExp(`^${pattern.replace(/[.]/g, "\\.").replace(/\*/g, "[0-9a-f]+")}$`);
+  const match = meshtasticListingCache.find((name) => re.test(name));
+  if (!match) throw new Error(`no published build for ${board} · sync ${sync} yet`);
+  return match;
+}
+
 const staged = { 0: null, 1: null };
 let esp32 = [];
 
@@ -109,7 +126,7 @@ async function prepareAndStage() {
   try {
     setStatus(`fetching ${fetchLabel} firmware…`);
     const res = versionLabel === "meshtastic"
-      ? await fetch(MESHTASTIC_RAW(MESHTASTIC_FIRMWARE[$("bld-meshtastic-board").value][$("bld-meshtastic-sync").value]))
+      ? await fetch(MESHTASTIC_RAW(await resolveMeshtasticFilename($("bld-meshtastic-board").value, $("bld-meshtastic-sync").value)))
       : await fetch(FIRMWARE_RAW(versionLabel, env));
     if (res.status === 404)
       throw new Error(`no published build for ${fetchLabel} yet — run the prebuild workflow`);
