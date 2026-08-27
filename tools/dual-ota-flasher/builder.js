@@ -38,6 +38,15 @@ let esp32 = [];
 
 const $ = (id) => document.getElementById(id);
 
+// Sync-word selector only makes sense for boards whose firmware pattern actually has
+// a {sync} slot (LR11xx-capable hardware); plain SX127x boards ship a single build.
+function onMeshtasticBoardChange() {
+  const board = $("bld-meshtastic-board")?.value;
+  const supportsSync = MESHTASTIC_FIRMWARE[board]?.includes("{sync}") ?? true;
+  $("meshtastic-sync-field").hidden = !supportsSync;
+  $("meshtastic-sync-warning").hidden = !supportsSync || $("bld-meshtastic-sync").value !== "0x12";
+}
+
 function onVersionChange() {
   const version = $("bld-version").value;
   const isRNode = version === "rnode";
@@ -312,6 +321,8 @@ function init() {
   );
   $("bld-version").addEventListener("change", onVersionChange);
   onVersionChange();
+  $("bld-meshtastic-board")?.addEventListener("change", onMeshtasticBoardChange);
+  onMeshtasticBoardChange();
   $("bld-meshtastic-sync")?.addEventListener("change", () => {
     $("meshtastic-sync-warning").hidden = $("bld-meshtastic-sync").value !== "0x12";
   });

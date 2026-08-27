@@ -42,8 +42,8 @@ export const MESHTASTIC_BOARDS = {
 // sync-word value.
 export const MESHTASTIC_FIRMWARE = {
   emax_900_tx_oled: "firmware-emax_900_tx_oled-2.7.26.*-sync{sync}.ota.bin",
-  // No sync-word variant published upstream for this board; {sync} absent so the
-  // selector value is ignored (no-op in resolveMeshtasticFilename's replace).
+  // No sync-word variant published upstream for this board; {sync} absent hides the
+  // sync-word selector for it (see onMeshtasticBoardChange in builder.js).
   "tlora-v2-1-1_6": "firmware-tlora-v2-1-1_6-2.7.26.*.ota.bin",
 };
 
