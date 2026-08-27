@@ -33,6 +33,7 @@ export const MESHTASTIC_REPO = { owner: "Akceptor", repo: "meshtastic_firmware",
 // MESHTASTIC_FIRMWARE below) to support another board — no code changes needed.
 export const MESHTASTIC_BOARDS = {
   "EMAX 900 OLED TX": "emax_900_tx_oled",
+  "LilyGo LoRa32 v2.1 (SX1276 / 433–915 MHz)": "tlora-v2-1-1_6",
 };
 
 // Board key -> firmware filename pattern (the commit-hash segment varies with every
@@ -41,6 +42,9 @@ export const MESHTASTIC_BOARDS = {
 // sync-word value.
 export const MESHTASTIC_FIRMWARE = {
   emax_900_tx_oled: "firmware-emax_900_tx_oled-2.7.26.*-sync{sync}.ota.bin",
+  // No sync-word variant published upstream for this board; {sync} absent so the
+  // selector value is ignored (no-op in resolveMeshtasticFilename's replace).
+  "tlora-v2-1-1_6": "firmware-tlora-v2-1-1_6-2.7.26.*.ota.bin",
 };
 
 export const DOMAINS = ["eu_868", "fcc_915", "au_915", "in_866", "au_433", "eu_433", "us_433", "us_433_wide"];
