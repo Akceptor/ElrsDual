@@ -230,6 +230,57 @@ async function isMeshtasticImage(addr) {
   }
 }
 
+// --- URL query-param sync: lets a link pre-select the Configure form (?version=&board=&
+// device=&domain=&slot=) and keeps the URL in sync as the user changes the form. ---
+const SLOT_PARAM = { 0: "app0", 1: "app1" };
+const PARAM_SLOT = { app0: 0, app1: 1 };
+
+function setSelectIfValid(id, value) {
+  const el = $(id);
+  if (!el || value == null) return false;
+  if (![...el.options].some((o) => o.value === value)) return false;
+  el.value = value;
+  return true;
+}
+
+function applyURLParams() {
+  const p = new URLSearchParams(location.search);
+
+  if (setSelectIfValid("bld-version", p.get("version"))) onVersionChange();
+  if (PARAM_SLOT[p.get("slot")] !== undefined) setSelectIfValid("bld-slot", String(PARAM_SLOT[p.get("slot")]));
+
+  const version = $("bld-version").value;
+  if (version === "rnode") {
+    setSelectIfValid("bld-rnode-board", p.get("board"));
+  } else if (version === "meshtastic") {
+    if (setSelectIfValid("bld-meshtastic-board", p.get("board"))) onMeshtasticBoardChange();
+    if (setSelectIfValid("bld-meshtastic-sync", p.get("sync")))
+      $("meshtastic-sync-warning").hidden = $("meshtastic-sync-field").hidden || $("bld-meshtastic-sync").value !== "0x12";
+  } else {
+    const target = p.get("device") && esp32.find((t) => t.id === p.get("device"));
+    if (target) selectTarget(target, p.get("domain"));
+  }
+}
+
+function updateURL() {
+  const p = new URLSearchParams();
+  const version = $("bld-version").value;
+  if (version) p.set("version", version);
+  if (version === "rnode") {
+    p.set("board", $("bld-rnode-board").value);
+  } else if (version === "meshtastic") {
+    p.set("board", $("bld-meshtastic-board").value);
+    p.set("sync", $("bld-meshtastic-sync").value);
+  } else {
+    const target = selectedTarget();
+    if (target) p.set("device", target.id);
+    p.set("domain", $("bld-domain").value);
+  }
+  p.set("slot", SLOT_PARAM[Number($("bld-slot").value)]);
+  const qs = p.toString();
+  history.replaceState(null, "", qs ? `?${qs}` : location.pathname);
+}
+
 function selectTarget(target, domain) {
   $("bld-vendor").value = target.mfr;
   fillCategories();
@@ -329,6 +380,8 @@ function init() {
   $("bld-vendor").addEventListener("change", fillCategories);
   $("bld-category").addEventListener("change", fillDevices);
   $("bld-build").addEventListener("click", prepareAndStage);
+  applyURLParams();
+  document.querySelector(".form").addEventListener("change", updateURL);
   $("detect")?.addEventListener("click", detectTarget);
   $("bld-flash-staged-0")?.addEventListener("click", () => flashStaged(0));
   $("bld-flash-staged-1")?.addEventListener("click", () => flashStaged(1));
@@ -357,7 +410,7 @@ function init() {
   // Re-apply staging constraints whenever an operation finishes re-enabling buttons.
   window.onBusyChange = (busy) => { if (!busy) updateFlashButtons(); };
   updateFlashButtons();
-  loadTargets().catch((e) => setStatus(e.message));
+  loadTargets().then(applyURLParams).catch((e) => setStatus(e.message));
 }
 
 if (document.readyState !== "loading") init();
