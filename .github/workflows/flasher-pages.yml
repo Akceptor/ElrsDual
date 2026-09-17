@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [master]
-    paths: ["tools/dual-ota-flasher/**", "tools/c3-flasher/**"]
+    paths: ["tools/dual-ota-flasher/**", "tools/c3-flasher/**", ".github/workflows/flasher-pages.yml"]
 
 permissions:
   contents: read
