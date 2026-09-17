@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [master]
-    paths: ["tools/dual-ota-flasher/**"]
+    paths: ["tools/dual-ota-flasher/**", "tools/c3-flasher/**"]
 
 permissions:
   contents: read
@@ -22,9 +22,24 @@ jobs:
       - uses: actions/checkout@v6
       - name: Stamp build version (commit + date) into the page
         run: sed -i "s/__BUILD__/${GITHUB_SHA::7} $(date -u +%Y-%m-%d)/" tools/dual-ota-flasher/index.html
+      # The dual-OTA flasher stays at the site root (existing published URL), with the C3
+      # flasher alongside it at /c3-flasher/. In-repo the C3 page imports the esptool bundle
+      # as ../dual-ota-flasher/esptool-bundle.js so it also works when served straight from
+      # a checkout, so that one file is duplicated into the artifact to keep the path valid
+      # once the root is flattened. Same reason the cross-link loses its ../ here.
+      - name: Stage both flasher pages
+        run: |
+          mkdir -p _site/c3-flasher _site/dual-ota-flasher
+          cp -r tools/dual-ota-flasher/. _site/
+          cp -r tools/c3-flasher/. _site/c3-flasher/
+          cp tools/dual-ota-flasher/esptool-bundle.js _site/dual-ota-flasher/
+          sed -i 's|href="../c3-flasher/"|href="c3-flasher/"|' _site/index.html
+          # _site/dual-ota-flasher/ holds only the shared bundle, so point the C3 page's
+          # back-link at the real root page instead of that stub directory.
+          sed -i 's|href="../dual-ota-flasher/"|href="../"|' _site/c3-flasher/index.html
       - uses: actions/configure-pages@v5
         with: { enablement: true }   # create/enable the Pages site if it doesn't exist yet
       - uses: actions/upload-pages-artifact@v3
-        with: { path: "tools/dual-ota-flasher" }
+        with: { path: "_site" }
       - id: deployment
         uses: actions/deploy-pages@v4
