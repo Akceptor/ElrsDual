@@ -1,4 +1,4 @@
-# ESP32 / ESP32-C3 Meshtastic Flasher
+# Meshtastic Flasher
 
 Flashes a **standalone Meshtastic** firmware image onto an ESP32 or ESP32-C3 LR1121 board,
 from the browser (esptool-js over Web Serial, no install).
@@ -58,14 +58,14 @@ Web Serial needs a secure context, so serve the folder over localhost.
 
 **Start (foreground):**
 ```
-cd tools/c3-flasher
+cd tools/meshtastic-flasher
 python3 -m http.server 8000
 ```
 Then open <http://localhost:8000> in Chrome/Edge. **Stop** with `Ctrl+C`.
 
 **Start (background):**
 ```
-cd tools/c3-flasher
+cd tools/meshtastic-flasher
 python3 -m http.server 8000 &        # note the PID it prints
 ```
 **Stop:**
