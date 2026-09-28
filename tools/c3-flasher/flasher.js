@@ -1,12 +1,16 @@
 import { ESPLoader, Transport } from "../dual-ota-flasher/esptool-bundle.js";
-import { MESHTASTIC_REPO, MESHTASTIC_BOARDS, MESHTASTIC_FIRMWARE } from "./config.js";
-import { markFlashed, resetMap } from "./memmap.js";
+import { MESHTASTIC_REPO, MESHTASTIC_BOARDS, MESHTASTIC_FIRMWARE, MESHTASTIC_CHIPS } from "./config.js";
+import { markFlashed, resetMap, setChip } from "./memmap.js";
 
 const FLASH_ADDR = 0x0; // factory image = bootloader + partition table + app, all in one blob
 
 let transport = null;
 let esploader = null;
 let stagedBytes = null;   // Uint8Array ready to flash, from whichever source was last prepared
+let stagedBoard = null;   // board key of a fetched published build; null for a local file
+let connectedChip = null;
+
+const SUPPORTED_CHIPS = [...new Set(Object.values(MESHTASTIC_CHIPS))];
 
 const $ = (id) => document.getElementById(id);
 const logEl = $("log");
@@ -46,6 +50,7 @@ async function disconnect() {
   try { await transport?.disconnect(); } catch (_) {}
   esploader = null;
   transport = null;
+  connectedChip = null;
   setConnUI(false);
 }
 
@@ -72,10 +77,11 @@ $("connect").addEventListener("click", async () => {
       mb = m ? parseInt(m[1], 10) : 0;
     } catch (_) { /* size detection failed — treat as unknown */ }
 
-    // Guard: this page only flashes a plain ESP32-C3 with >= 4 MB flash (the published
-    // build and the C3 flash map are both specific to that chip/layout). Refuse anything else.
-    if (chipName !== "ESP32-C3") {
-      log("Unsupported chip: " + (chipName || "unknown") + ". This tool flashes an ESP32-C3 (>=4 MB) only — not connecting.");
+    // Guard: only chips a configured board is built for, with >= 4 MB flash (the shared
+    // partition layout needs it). Refuse anything else.
+    if (!SUPPORTED_CHIPS.includes(chipName)) {
+      log("Unsupported chip: " + (chipName || "unknown") + ". This tool flashes " +
+          SUPPORTED_CHIPS.join(" / ") + " (>=4 MB) only — not connecting.");
       try { await t.disconnect(); } catch (_) {}
       return;
     }
@@ -87,11 +93,15 @@ $("connect").addEventListener("click", async () => {
 
     transport = t;
     esploader = loader;
+    connectedChip = chipName;
+    setChip(chipName);
+    selectBoardForChip(chipName);
     log("Connected: " + chip + "   [" + chipName + ", " + (mb ? mb + " MB flash" : "flash size unknown") + "]");
     setConnUI(true);
   } catch (e) {
     esploader = null;
     transport = null;
+    connectedChip = null;
     setConnUI(false);
     log("Connect failed: " + e.message + "  (hold the BOOT button and retry)");
   }
@@ -127,6 +137,16 @@ function fillBoards() {
 }
 fillBoards();
 
+function selectBoardForChip(chipName) {
+  const sel = $("board");
+  if (MESHTASTIC_CHIPS[sel.value] === chipName) return;
+  const opt = [...sel.options].find((o) => MESHTASTIC_CHIPS[o.value] === chipName);
+  if (opt) {
+    sel.value = opt.value;
+    log(`Board set to ${opt.text} to match the connected chip.`);
+  }
+}
+
 $("fetch-build").addEventListener("click", async () => {
   const board = $("board").value;
   const boardLabel = $("board").options[$("board").selectedIndex].text;
@@ -138,12 +158,14 @@ $("fetch-build").addEventListener("click", async () => {
     const res = await fetch(MESHTASTIC_RAW(filename));
     if (!res.ok) throw new Error(`firmware HTTP ${res.status}`);
     stagedBytes = new Uint8Array(await res.arrayBuffer());
+    stagedBoard = board;
     $("fetch-status").textContent = `ready: ${filename} (${stagedBytes.length} bytes)`;
     log(`Fetched ${filename} for ${boardLabel} (${stagedBytes.length} bytes).`);
   } catch (e) {
     $("fetch-status").textContent = "error: " + (e.message || e);
     log("Fetch error: " + (e.message || e));
     stagedBytes = null;
+    stagedBoard = null;
   } finally {
     setBusy(false);
   }
@@ -156,6 +178,7 @@ $("local-file").addEventListener("change", async () => {
   if (!file) return;
   document.querySelector('input[name="source"][value="local"]').checked = true;
   stagedBytes = new Uint8Array(await file.arrayBuffer());
+  stagedBoard = null;
   log(`Loaded local file ${file.name} (${stagedBytes.length} bytes).`);
   updateFlashButton();
 });
@@ -173,6 +196,12 @@ $("board").addEventListener("change", () => {
 $("flash").addEventListener("click", async () => {
   if (!esploader) { log("Connect first."); return; }
   if (!stagedBytes) { log("Fetch a published build or pick a local file first."); return; }
+  const wantChip = stagedBoard && MESHTASTIC_CHIPS[stagedBoard];
+  if (wantChip && wantChip !== connectedChip) {
+    log(`Refusing to flash: the fetched build is for ${wantChip} but the connected chip is ${connectedChip}. ` +
+        "Pick the matching board and fetch again.");
+    return;
+  }
   const eraseFirst = $("erase-first").checked;
   setBusy(true, "flashing");
   try {

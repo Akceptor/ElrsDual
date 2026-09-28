@@ -5,10 +5,19 @@
 // builds come from — see tools/dual-ota-flasher/config.js.
 export const MESHTASTIC_REPO = { owner: "Akceptor", repo: "meshtastic_firmware", ref: "develop-2.7.26" };
 
-// Board display label -> board key. Add an entry here (plus a matching entry in
-// MESHTASTIC_FIRMWARE below) to support another board — no code changes needed.
+// Board display label -> board key. Add an entry here (plus matching entries in
+// MESHTASTIC_FIRMWARE and MESHTASTIC_CHIPS below) to support another board — no code
+// changes needed.
 export const MESHTASTIC_BOARDS = {
-  "BAYCKRC C3 900/2400 Dual Band Nano RX": "unified_esp32c3_lr1121_rx",
+  "ESP32-C3 + LR1121": "unified_esp32c3_lr1121_rx",
+  "ESP32 + LR1121": "unified_esp32_lr1121_rx",
+};
+
+// Board key -> esptool-js CHIP_NAME the image is built for. Connecting accepts any chip
+// listed here; flashing refuses a published build whose chip doesn't match the board.
+export const MESHTASTIC_CHIPS = {
+  unified_esp32c3_lr1121_rx: "ESP32-C3",
+  unified_esp32_lr1121_rx: "ESP32",
 };
 
 // Board key -> factory-image filename pattern. The commit-hash segment varies with every
@@ -16,4 +25,5 @@ export const MESHTASTIC_BOARDS = {
 // listing (mirrors resolveMeshtasticFilename in tools/dual-ota-flasher/builder.js).
 export const MESHTASTIC_FIRMWARE = {
   unified_esp32c3_lr1121_rx: "firmware-unified_esp32c3_lr1121_rx-2.7.26.*.factory.bin",
+  unified_esp32_lr1121_rx: "firmware-unified_esp32_lr1121_rx-2.7.26.*.factory.bin",
 };

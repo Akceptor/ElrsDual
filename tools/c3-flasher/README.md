@@ -1,7 +1,10 @@
-# ESP32-C3 Meshtastic Flasher
+# ESP32 / ESP32-C3 Meshtastic Flasher
 
-Flashes a **standalone Meshtastic** firmware image onto an ESP32-C3 board, from the
-browser (esptool-js over Web Serial, no install).
+Flashes a **standalone Meshtastic** firmware image onto an ESP32 or ESP32-C3 LR1121 board,
+from the browser (esptool-js over Web Serial, no install).
+
+Boards: **ESP32-C3 + LR1121** (`unified_esp32c3_lr1121_rx`) and **ESP32 + LR1121**
+(`unified_esp32_lr1121_rx`).
 
 ## What this does
 
@@ -11,9 +14,9 @@ browser (esptool-js over Web Serial, no install).
   boards typically ship freshly flashed with ExpressLRS, and a stale/corrupt NVS
   partition left behind by that can cause an intermittent NimBLE crash loop on
   Meshtastic that looks like a radio fault (see the firmware repo's `HANDOFF.md`).
-- Shows a static diagram of the C3 partition table
-  (`firmware/variants/esp32c3/unified_esp32c3_lr1121_rx/partitions-dual.csv`) and marks
-  the cells this page actually writes.
+- Shows a static diagram of the partition table both boards share
+  (`partitions-dual.csv` in each variant dir) and marks the cells this page actually
+  writes. The bootloader cell shows `0x1000` on ESP32 and `0x0` on ESP32-C3.
 
 ## What this does NOT do
 
@@ -23,8 +26,11 @@ browser (esptool-js over Web Serial, no install).
   (reserved for a possible future ExpressLRS/Meshtastic dual-boot setup) and
   `slotctr` (the dual-OTA slot-switch bootloader's power-cycle counter) is left
   untouched too.
-- **ESP32-C3 only.** The connect handler refuses any other chip (including plain
-  ESP32 — use [`../dual-ota-flasher/`](../dual-ota-flasher/) for that).
+- **ESP32 / ESP32-C3 only.** The connect handler refuses any chip no board in
+  `config.js` is built for, auto-selects the board matching the connected chip, and
+  flashing refuses a published build fetched for the other chip. A **local file** is not
+  chip-checked. For ExpressLRS + Meshtastic dual-boot on ESP32, use
+  [`../dual-ota-flasher/`](../dual-ota-flasher/).
 - No EdgeTX passthrough. This board is a plain RX on a USB-UART bridge (or native
   USB-JTAG), never behind a TX radio, so that code path from the dual-OTA flasher was
   dropped entirely.
@@ -40,10 +46,11 @@ an esptool flash without a manual reset").
 
 ## Adding another board
 
-`config.js` has two maps: `MESHTASTIC_BOARDS` (display label → board key) and
+`config.js` has three maps: `MESHTASTIC_BOARDS` (display label → board key),
 `MESHTASTIC_FIRMWARE` (board key → factory-image filename pattern, with `*` standing
-in for the commit-hash segment that changes on every upstream rebuild). Add one entry
-to each to support a new board — no other code changes needed.
+in for the commit-hash segment that changes on every upstream rebuild) and
+`MESHTASTIC_CHIPS` (board key → esptool-js chip name). Add one entry to each to support
+a new board — no other code changes needed, as long as it uses the same partition layout.
 
 ## Run / stop
 

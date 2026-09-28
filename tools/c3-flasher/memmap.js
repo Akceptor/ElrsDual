@@ -1,9 +1,10 @@
-// Static flash-map diagram for the ESP32-C3 partition layout, derived from
-// firmware/variants/esp32c3/unified_esp32c3_lr1121_rx/partitions-dual.csv. Unlike the
+// Static flash-map diagram for the partition layout shared by
+// firmware/variants/esp32c3/unified_esp32c3_lr1121_rx/partitions-dual.csv and
+// firmware/variants/esp32/unified_esp32_lr1121_rx/partitions-dual.csv. Unlike the
 // dual-OTA flasher's memmap.js, there's no "active slot" concept here — this is a
 // single-slot flash, so cells just flip to "written" once flashed.
 const PARTITIONS = [
-  { id: "bootloader", label: "Bootloader",       addr: "0x1000",   size: null,      kind: "narrow" },
+  { id: "bootloader", label: "Bootloader",       addr: "0x0",      size: null,      kind: "narrow" },
   { id: "parttable",  label: "Partition table",  addr: "0x8000",   size: null,      kind: "narrow" },
   { id: "nvs",        label: "NVS",              addr: "0x9000",   size: "20K",     kind: "narrow" },
   { id: "otadata",    label: "OTA data",         addr: "0xe000",   size: "8K",      kind: "narrow" },
@@ -51,6 +52,13 @@ export function resetMap() {
     document.getElementById(`mm-cell-${p.id}`)?.classList.remove("written");
     document.getElementById(`mm-badge-${p.id}`)?.classList.remove("show");
   }
+}
+
+// The only chip-dependent cell: the ROM loads the second-stage bootloader from 0x1000 on
+// the original ESP32 but from 0x0 on the C3.
+export function setChip(chipName) {
+  PARTITIONS[0].addr = chipName === "ESP32" ? "0x1000" : "0x0";
+  render();
 }
 
 render();

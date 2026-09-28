@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>ESP32-C3 Meshtastic Flasher</title>
+<title>ESP32 / ESP32-C3 Meshtastic Flasher</title>
 <script>
   // Set theme before paint to avoid a flash of the wrong theme.
   (function(){ try { document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || "auto"); } catch(e){} })();
@@ -116,11 +116,11 @@
   <div id="busy-bar" class="busy-bar" hidden><div class="busy-bar-fill"></div></div>
   <div class="topbar">
     <button id="theme-toggle" class="icon-toggle" title="Theme" aria-label="Theme">🌙</button>
-    <h1>ESP32-C3 Meshtastic Flasher</h1>
+    <h1>ESP32 / ESP32-C3 Meshtastic Flasher</h1>
     <span></span>
   </div>
 
-  <p class="lede">Flash a <b>standalone Meshtastic</b> firmware image onto an ESP32-C3 board.
+  <p class="lede">Flash a <b>standalone Meshtastic</b> firmware image onto an ESP32 or ESP32-C3 LR1121 board.
   This is <b>not</b> the dual-OTA tool — there is only one slot here, and it
   <b>overwrites whatever ExpressLRS firmware is currently on the board</b> (its own
   bootloader, partition table and app all get replaced). If you want ExpressLRS back
@@ -130,12 +130,12 @@
      ⚠️ Web Serial isn't available in this browser. Use <b>Chrome</b> or <b>Edge</b> over
      <code>https</code> (or <code>http://localhost</code>).</p>
 
-  <p>Flashing an <b>ESP32</b> (not C3) dual-boot board? Use the
-     <a href="../dual-ota-flasher/">Dual-OTA Flasher</a> instead — this page refuses non-C3 chips.</p>
+  <p>Want ExpressLRS and Meshtastic side by side on an ESP32 dual-boot board? Use the
+     <a href="../dual-ota-flasher/">Dual-OTA Flasher</a> instead.</p>
 
   <!-- flash memory map -->
   <section class="step">
-    <div class="step-head"><span class="badge tool">▤</span><h2>C3 flash map</h2></div>
+    <div class="step-head"><span class="badge tool">▤</span><h2>Flash map</h2></div>
     <p class="mm-cap" id="mm-caption">Cells light up green once this page has written to them.
       This is ExpressLRS's own <code>min_spiffs</code> layout for this board, so
       <code>ota_1</code> is currently unused (reserved for a possible future ExpressLRS/Meshtastic
@@ -150,7 +150,8 @@
     <div class="step-head"><span class="badge">1</span><h2>Connect your board</h2></div>
     <p class="step-desc">Plug the board in over USB and connect. Boards with the CP2102 bridge
       reset automatically; boards connected over native USB-JTAG may need <b>BOOT</b> held while
-      connecting. Only a plain ESP32-C3 with ≥4&nbsp;MB flash is accepted.</p>
+      connecting. Only an ESP32 or ESP32-C3 with ≥4&nbsp;MB flash is accepted; the board below
+      is picked to match the connected chip.</p>
     <div class="field connectrow">
       <label class="lbl" for="baud">Baud</label>
       <select id="baud">
