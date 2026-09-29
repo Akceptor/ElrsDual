@@ -34,6 +34,7 @@ export const MESHTASTIC_REPO = { owner: "Akceptor", repo: "meshtastic_firmware",
 export const MESHTASTIC_BOARDS = {
   "EMAX 900 OLED TX": "emax_900_tx_oled",
   "BAYCKRC Dual Band TX": "bayckrc_dual_band",
+  "Radiomaster TX15 (internal module, slot 1)": "radiomaster_tx15_internal",
   "LilyGo LoRa32 v2.1 (SX1276 / 433–915 MHz)": "tlora-v2-1-1_6",
 };
 
@@ -44,6 +45,7 @@ export const MESHTASTIC_BOARDS = {
 export const MESHTASTIC_FIRMWARE = {
   emax_900_tx_oled: "firmware-emax_900_tx_oled-2.7.26.*-sync{sync}.ota.bin",
   bayckrc_dual_band: "firmware-bayckrc_dual_band-2.7.26.*-sync{sync}.ota.bin",
+  radiomaster_tx15_internal: "firmware-radiomaster_tx15_internal-2.7.26.*-sync{sync}.ota.bin",
   // No sync-word variant published upstream for this board; {sync} absent hides the
   // sync-word selector for it (see onMeshtasticBoardChange in builder.js).
   "tlora-v2-1-1_6": "firmware-tlora-v2-1-1_6-2.7.26.*.ota.bin",
