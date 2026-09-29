@@ -45,9 +45,9 @@ export const MESHTASTIC_BOARDS = {
 export const MESHTASTIC_FIRMWARE = {
   emax_900_tx_oled: "firmware-emax_900_tx_oled-2.7.26.*-sync{sync}.ota.bin",
   bayckrc_dual_band: "firmware-bayckrc_dual_band-2.7.26.*-sync{sync}.ota.bin",
-  radiomaster_tx15_internal: "firmware-radiomaster_tx15_internal-2.7.26.*-sync{sync}.ota.bin",
-  // No sync-word variant published upstream for this board; {sync} absent hides the
-  // sync-word selector for it (see onMeshtasticBoardChange in builder.js).
+  // No sync-word variant published for these boards; {sync} absent hides the
+  // sync-word selector for them (see onMeshtasticBoardChange in builder.js).
+  radiomaster_tx15_internal: "firmware-radiomaster_tx15_internal-2.7.26.*.ota.bin",
   "tlora-v2-1-1_6": "firmware-tlora-v2-1-1_6-2.7.26.*.ota.bin",
 };
 
