@@ -19,17 +19,17 @@ const MESHTASTIC_RAW = (file) =>
 // The commit-hash segment in MESHTASTIC_FIRMWARE filenames changes on every upstream
 // rebuild, so resolve the wildcard against the actual prebuilt/ directory listing.
 let meshtasticListingCache = null;
-async function resolveMeshtasticFilename(board, sync) {
+async function resolveMeshtasticFilename(board) {
   if (!meshtasticListingCache) {
     const url = `https://api.github.com/repos/${MESHTASTIC_REPO.owner}/${MESHTASTIC_REPO.repo}/contents/prebuilt?ref=${encodeURIComponent(MESHTASTIC_REPO.ref)}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`meshtastic listing HTTP ${res.status}`);
     meshtasticListingCache = (await res.json()).map((entry) => entry.name);
   }
-  const pattern = MESHTASTIC_FIRMWARE[board].replace("{sync}", sync);
+  const pattern = MESHTASTIC_FIRMWARE[board];
   const re = new RegExp(`^${pattern.replace(/[.]/g, "\\.").replace(/\*/g, "[0-9a-f]+")}$`);
   const match = meshtasticListingCache.find((name) => re.test(name));
-  if (!match) throw new Error(`no published build for ${board} · sync ${sync} yet`);
+  if (!match) throw new Error(`no published build for ${board} yet`);
   return match;
 }
 
@@ -38,13 +38,11 @@ let esp32 = [];
 
 const $ = (id) => document.getElementById(id);
 
-// Sync-word selector only makes sense for boards whose firmware pattern actually has
-// a {sync} slot (LR11xx-capable hardware); plain SX127x boards ship a single build.
+// Board-specific notes: <p class="meshtastic-board-note" data-board="<key>"> in index.html.
 function onMeshtasticBoardChange() {
   const board = $("bld-meshtastic-board")?.value;
-  const supportsSync = MESHTASTIC_FIRMWARE[board]?.includes("{sync}") ?? true;
-  $("meshtastic-sync-field").hidden = !supportsSync;
-  $("meshtastic-sync-warning").hidden = !supportsSync || $("bld-meshtastic-sync").value !== "0x12";
+  for (const el of document.querySelectorAll(".meshtastic-board-note"))
+    el.hidden = el.dataset.board !== board;
 }
 
 function onVersionChange() {
@@ -122,8 +120,7 @@ async function prepareAndStage() {
     fetchLabel = `RNode · ${sel.options[sel.selectedIndex].text}`;
   } else if (versionLabel === "meshtastic") {
     const boardSelect = $("bld-meshtastic-board");
-    fetchLabel = "Meshtastic · " + boardSelect.options[boardSelect.selectedIndex].text
-      + " · sync " + $("bld-meshtastic-sync").value;
+    fetchLabel = "Meshtastic · " + boardSelect.options[boardSelect.selectedIndex].text;
   } else {
     const target = selectedTarget();
     if (!target) { setStatus("no target selected"); return; }
@@ -135,7 +132,7 @@ async function prepareAndStage() {
   try {
     setStatus(`fetching ${fetchLabel} firmware…`);
     const res = versionLabel === "meshtastic"
-      ? await fetch(MESHTASTIC_RAW(await resolveMeshtasticFilename($("bld-meshtastic-board").value, $("bld-meshtastic-sync").value)))
+      ? await fetch(MESHTASTIC_RAW(await resolveMeshtasticFilename($("bld-meshtastic-board").value)))
       : await fetch(FIRMWARE_RAW(versionLabel, env));
     if (res.status === 404)
       throw new Error(`no published build for ${fetchLabel} yet — run the prebuild workflow`);
@@ -254,8 +251,6 @@ function applyURLParams() {
     setSelectIfValid("bld-rnode-board", p.get("board"));
   } else if (version === "meshtastic") {
     if (setSelectIfValid("bld-meshtastic-board", p.get("board"))) onMeshtasticBoardChange();
-    if (setSelectIfValid("bld-meshtastic-sync", p.get("sync")))
-      $("meshtastic-sync-warning").hidden = $("meshtastic-sync-field").hidden || $("bld-meshtastic-sync").value !== "0x12";
   } else {
     const target = p.get("device") && esp32.find((t) => t.id === p.get("device"));
     if (target) selectTarget(target, p.get("domain"));
@@ -270,7 +265,6 @@ function updateURL() {
     p.set("board", $("bld-rnode-board").value);
   } else if (version === "meshtastic") {
     p.set("board", $("bld-meshtastic-board").value);
-    p.set("sync", $("bld-meshtastic-sync").value);
   } else {
     const target = selectedTarget();
     if (target) p.set("device", target.id);
@@ -374,9 +368,6 @@ function init() {
   onVersionChange();
   $("bld-meshtastic-board")?.addEventListener("change", onMeshtasticBoardChange);
   onMeshtasticBoardChange();
-  $("bld-meshtastic-sync")?.addEventListener("change", () => {
-    $("meshtastic-sync-warning").hidden = $("bld-meshtastic-sync").value !== "0x12";
-  });
   $("bld-vendor").addEventListener("change", fillCategories);
   $("bld-category").addEventListener("change", fillDevices);
   $("bld-build").addEventListener("click", prepareAndStage);

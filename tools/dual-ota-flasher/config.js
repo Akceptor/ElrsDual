@@ -34,19 +34,16 @@ export const MESHTASTIC_REPO = { owner: "Akceptor", repo: "meshtastic_firmware",
 export const MESHTASTIC_BOARDS = {
   "EMAX 900 OLED TX": "emax_900_tx_oled",
   "BAYCKRC Dual Band TX": "bayckrc_dual_band",
-  "Radiomaster TX15 (internal module, slot 1)": "radiomaster_tx15_internal",
+  "Radiomaster TX15 (internal module)": "radiomaster_tx15_internal",
   "LilyGo LoRa32 v2.1 (SX1276 / 433–915 MHz)": "tlora-v2-1-1_6",
 };
 
 // Board key -> firmware filename pattern (the commit-hash segment varies with every
 // upstream rebuild, so it's a wildcard resolved at runtime against the prebuilt/ listing —
-// see resolveMeshtasticFilename in builder.js). {sync} is substituted with the selected
-// sync-word value.
+// see resolveMeshtasticFilename in builder.js). One build per board, stock sync word 0x2b.
 export const MESHTASTIC_FIRMWARE = {
-  emax_900_tx_oled: "firmware-emax_900_tx_oled-2.7.26.*-sync{sync}.ota.bin",
-  bayckrc_dual_band: "firmware-bayckrc_dual_band-2.7.26.*-sync{sync}.ota.bin",
-  // No sync-word variant published for these boards; {sync} absent hides the
-  // sync-word selector for them (see onMeshtasticBoardChange in builder.js).
+  emax_900_tx_oled: "firmware-emax_900_tx_oled-2.7.26.*.ota.bin",
+  bayckrc_dual_band: "firmware-bayckrc_dual_band-2.7.26.*.ota.bin",
   radiomaster_tx15_internal: "firmware-radiomaster_tx15_internal-2.7.26.*.ota.bin",
   "tlora-v2-1-1_6": "firmware-tlora-v2-1-1_6-2.7.26.*.ota.bin",
 };
