@@ -36,6 +36,7 @@ export const MESHTASTIC_BOARDS = {
   "BAYCKRC Dual Band TX": "bayckrc_dual_band",
   "Radiomaster TX15 (internal module)": "radiomaster_tx15_internal",
   "LilyGo LoRa32 v2.1 (SX1276 / 433–915 MHz)": "tlora-v2-1-1_6",
+  "ESP32 SX12xx Dual (single radio)": "esp32_sx12xx_dual_single",
 };
 
 // Board key -> firmware filename pattern (the commit-hash segment varies with every
@@ -46,6 +47,7 @@ export const MESHTASTIC_FIRMWARE = {
   bayckrc_dual_band: "firmware-bayckrc_dual_band-2.7.26.*.ota.bin",
   radiomaster_tx15_internal: "firmware-radiomaster_tx15_internal-2.7.26.*.ota.bin",
   "tlora-v2-1-1_6": "firmware-tlora-v2-1-1_6-2.7.26.*.ota.bin",
+  esp32_sx12xx_dual_single: "firmware-esp32_sx12xx_dual_single-2.7.26.*.ota.bin",
 };
 
 export const DOMAINS = ["eu_868", "fcc_915", "au_915", "in_866", "au_433", "eu_433", "us_433", "us_433_wide"];
