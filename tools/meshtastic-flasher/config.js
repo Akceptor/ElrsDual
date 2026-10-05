@@ -11,6 +11,7 @@ export const MESHTASTIC_REPO = { owner: "Akceptor", repo: "meshtastic_firmware",
 export const MESHTASTIC_BOARDS = {
   "ESP32-C3 + LR1121": "unified_esp32c3_lr1121_rx",
   "ESP32 + LR1121": "unified_esp32_lr1121_rx",
+  "ESP32 SX12xx Dual (single radio)": "esp32_sx12xx_dual_single",
 };
 
 // Board key -> esptool-js CHIP_NAME the image is built for. Connecting accepts any chip
@@ -18,6 +19,7 @@ export const MESHTASTIC_BOARDS = {
 export const MESHTASTIC_CHIPS = {
   unified_esp32c3_lr1121_rx: "ESP32-C3",
   unified_esp32_lr1121_rx: "ESP32",
+  esp32_sx12xx_dual_single: "ESP32",
 };
 
 // Board key -> factory-image filename pattern. The commit-hash segment varies with every
@@ -26,4 +28,5 @@ export const MESHTASTIC_CHIPS = {
 export const MESHTASTIC_FIRMWARE = {
   unified_esp32c3_lr1121_rx: "firmware-unified_esp32c3_lr1121_rx-2.7.26.*.factory.bin",
   unified_esp32_lr1121_rx: "firmware-unified_esp32_lr1121_rx-2.7.26.*.factory.bin",
+  esp32_sx12xx_dual_single: "firmware-esp32_sx12xx_dual_single-2.7.26.*.factory.bin",
 };
