@@ -137,12 +137,28 @@ function fillBoards() {
 }
 fillBoards();
 
+// Keep the selected board in the URL (?board=<key>) so a link pre-selects it.
+function applyURLParams() {
+  const board = new URLSearchParams(location.search).get("board");
+  const sel = $("board");
+  if (board && [...sel.options].some((o) => o.value === board)) sel.value = board;
+}
+function updateURL() {
+  const p = new URLSearchParams(location.search);
+  p.set("board", $("board").value);
+  history.replaceState(null, "", `?${p.toString()}`);
+}
+applyURLParams();
+updateURL();
+$("board").addEventListener("change", updateURL);
+
 function selectBoardForChip(chipName) {
   const sel = $("board");
   if (MESHTASTIC_CHIPS[sel.value] === chipName) return;
   const opt = [...sel.options].find((o) => MESHTASTIC_CHIPS[o.value] === chipName);
   if (opt) {
     sel.value = opt.value;
+    updateURL();
     log(`Board set to ${opt.text} to match the connected chip.`);
   }
 }
