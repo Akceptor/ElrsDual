@@ -357,9 +357,10 @@ async function provisionBothStaged() {
 function init() {
   $("bld-domain").innerHTML = opts(DOMAINS.map((d) => [d, d]));
   $("bld-version").innerHTML = opts(Object.keys(BRANCHES).map((v) => [v, v]));
-  $("bld-rnode-board").innerHTML = opts(
+  $("bld-rnode-board").innerHTML = $("rnode-prov-board").innerHTML = opts(
     Object.entries(RNODE_BOARDS).map(([label, env]) => [env, label])
   );
+  $("bld-rnode-board").addEventListener("change", () => { $("rnode-prov-board").value = $("bld-rnode-board").value; });
   $("bld-meshtastic-board").innerHTML = opts(
     Object.entries(MESHTASTIC_BOARDS).map(([label, key]) => [key, label])
   );
@@ -371,6 +372,7 @@ function init() {
   $("bld-category").addEventListener("change", fillDevices);
   $("bld-build").addEventListener("click", prepareAndStage);
   applyURLParams();
+  $("rnode-prov-board").value = $("bld-rnode-board").value;
   document.querySelector(".form").addEventListener("change", updateURL);
   $("detect")?.addEventListener("click", detectTarget);
   $("bld-flash-staged-0")?.addEventListener("click", () => flashStaged(0));
