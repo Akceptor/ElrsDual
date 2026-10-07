@@ -24,6 +24,7 @@ export const BRANCHES = {
 export const RNODE_BOARDS = {
   "LilyGo LoRa32 v2.1 (SX1276 / 433–915 MHz)": "lora32_v21",
   "ESP32 SX12xx Dual (single radio, SX1276)": "esp32_sx12xx_dual_single",
+  "Unified ESP32 LR1121 RX (sub-GHz)": "unified_esp32_lr1121_rx",
 };
 
 // RNode EEPROM identity per board — firmware hardware check rejects mismatched product/model.
@@ -31,6 +32,7 @@ export const RNODE_BOARDS = {
 export const RNODE_IDENTITY = {
   lora32_v21:               { product: 0xB1, model: { "433": 0xB4, "868": 0xB9 } },
   esp32_sx12xx_dual_single: { product: 0xF0, model: { "433": 0xFE, "868": 0xFE } },
+  unified_esp32_lr1121_rx:  { product: 0xF0, model: { "433": 0xFE, "868": 0xFE } },
 };
 
 // Pre-built Meshtastic app-only ("OTA") firmware.
