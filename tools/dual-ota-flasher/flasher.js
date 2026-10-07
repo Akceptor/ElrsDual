@@ -458,7 +458,7 @@ document.getElementById("btn-provision-rnode").addEventListener("click", async (
   const statusEl = document.getElementById("rnode-status");
   const setStatus = s => { if (statusEl) statusEl.textContent = s; };
   try {
-    await provisionRNode(band, setStatus);
+    await provisionRNode(document.getElementById("bld-rnode-board").value, band, setStatus);
   } catch (e) {
     log("RNode provision error: " + e.message);
     setStatus("");
