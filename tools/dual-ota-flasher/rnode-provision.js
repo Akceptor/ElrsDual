@@ -172,14 +172,21 @@ class KissPort {
 
 // Open (or reuse) the serial port; de-assert DTR/RTS to suppress LoRa32 v2.1 auto-reset.
 async function openPort() {
-  if (isConnected()) await releaseEsptool();
+  const wasEsptool = isConnected();
+  if (wasEsptool) await releaseEsptool();
   const port = getLastPort() ?? await navigator.serial.requestPort();
   let shouldClose = false;
   if (port.readable === null) {
     await port.open({ baudRate: 115200 });
     // De-assert immediately before the 100 nF caps on GPIO0/EN can charge.
     await port.setSignals({ dataTerminalReady: false, requestToSend: false });
-    await sleep(2000);  // wait for any transient reset + firmware boot
+    if (wasEsptool) {
+      // esptool leaves the chip in its download-mode stub; pulse EN (RTS) to boot the app
+      await port.setSignals({ dataTerminalReady: false, requestToSend: true });
+      await sleep(100);
+      await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+    }
+    await sleep(2500);  // wait for any transient reset + firmware boot
     shouldClose = true;
   }
   return { port, shouldClose };
