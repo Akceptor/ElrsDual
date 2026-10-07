@@ -23,6 +23,14 @@ export const BRANCHES = {
 // Board display label → CI artifact subdirectory (arduino-cli board short-name). Must stay in sync with build-rnode job in flasher-prebuild.yml.
 export const RNODE_BOARDS = {
   "LilyGo LoRa32 v2.1 (SX1276 / 433–915 MHz)": "lora32_v21",
+  "ESP32 SX12xx Dual (single radio, SX1276)": "esp32_sx12xx_dual_single",
+};
+
+// RNode EEPROM identity per board — firmware hardware check rejects mismatched product/model.
+// Generic ESP32 builds (BOARD_MODEL 0x35) only accept PRODUCT_HMBRW + MODEL_FE/FF.
+export const RNODE_IDENTITY = {
+  lora32_v21:               { product: 0xB1, model: { "433": 0xB4, "868": 0xB9 } },
+  esp32_sx12xx_dual_single: { product: 0xF0, model: { "433": 0xFE, "868": 0xFE } },
 };
 
 // Pre-built Meshtastic app-only ("OTA") firmware.

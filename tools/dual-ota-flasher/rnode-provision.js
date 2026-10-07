@@ -1,5 +1,6 @@
 import { rawBytesMD5 } from "./md5.js";
 import { log, getLastPort, isConnected, releaseEsptool } from "./flasher.js";
+import { RNODE_IDENTITY } from "./config.js";
 
 // EEPROM address map — matches liamcottle/rnode-flasher ROM class
 const ADDR_PRODUCT   = 0x00;
@@ -20,11 +21,6 @@ const ADDR_CONF_BW   = 0x9F;  // 4 bytes BE
 const ADDR_CONF_FREQ = 0xA3;  // 4 bytes BE
 
 const INFO_LOCK_BYTE = 0x73;
-
-// LilyGo LoRa32 v2.1 product/model (PRODUCT_T32_21 in ROM class)
-const PRODUCT_T32_21 = 0xB1;
-export const MODEL_B4 = 0xB4;  // 433 MHz
-export const MODEL_B9 = 0xB9;  // 868 / 915 / 923 MHz
 
 // Default radio config
 const DEFAULT_SF  = 8;
@@ -220,21 +216,24 @@ async function writeRom(kiss, addr, value) {
 
 // ─── Public API ─────────────────────────────────────────────────────────────
 
-// Provision a LoRa32 v2.1 RNode device.
+// Provision an RNode device (board = RNODE_BOARDS value).
 // Matches liamcottle/rnode-flasher provision() exactly:
 //   writes identity + checksum + zeroed signature + INFO_LOCK,
 //   sleeps 5 s, resets. Radio config is NOT written here — use configureRNodeRadio().
-export async function provisionRNode(band, setStatus) {
+export async function provisionRNode(board, band, setStatus) {
   if (!navigator.serial) throw new Error("Web Serial not available");
+  const identity = RNODE_IDENTITY[board];
+  if (!identity) throw new Error(`No RNode identity for board "${board}"`);
 
   const { port, shouldClose } = await openPort();
   const kiss = new KissPort(port);
   try {
-    const model       = band === "433" ? MODEL_B4 : MODEL_B9;
+    const product     = identity.product;
+    const model       = identity.model[band === "433" ? "433" : "868"];
     const defaultFreq = band === "433" ? FREQ_433 : FREQ_868;
     const serialBytes = packU32BE(1);
     const madeBytes   = packU32BE(Math.floor(Date.now() / 1000));
-    const checksum    = deviceChecksum(PRODUCT_T32_21, model, 0x01, serialBytes, madeBytes);
+    const checksum    = deviceChecksum(product, model, 0x01, serialBytes, madeBytes);
 
     // Verify device before writing anything
     setStatus("Detecting device (1/5)…");
@@ -243,7 +242,7 @@ export async function provisionRNode(band, setStatus) {
     // 2 — product info
     setStatus("Writing device info (2/5)…");
     log("RNode provision: writing product info");
-    await writeRom(kiss, ADDR_PRODUCT, PRODUCT_T32_21);
+    await writeRom(kiss, ADDR_PRODUCT, product);
     await writeRom(kiss, ADDR_MODEL,   model);
     await writeRom(kiss, ADDR_HW_REV,  0x01);
     for (let i = 0; i < 4; i++) await writeRom(kiss, ADDR_SERIAL + i, serialBytes[i]);
@@ -268,7 +267,7 @@ export async function provisionRNode(band, setStatus) {
     await kiss.sendKissCommand(CMD_RESET, CMD_RESET_BYTE);
 
     setStatus("Done — wait for device to boot, then click Write firmware hash");
-    log(`RNode provision: EEPROM written ✓  model ${band === "433" ? "B4" : "B9"} · ${defaultFreq} Hz  — device rebooting`);
+    log(`RNode provision: EEPROM written ✓  product ${product.toString(16)} model ${model.toString(16)} · ${defaultFreq} Hz  — device rebooting`);
   } finally {
     await kiss.close();
     if (shouldClose) try { await port.close(); } catch (_) {}

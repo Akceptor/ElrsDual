@@ -381,7 +381,7 @@ function init() {
     const band = (document.querySelector('input[name="rnode-band"]:checked') || {}).value || "868";
     $("btn-provision-rnode").disabled = true;
     try {
-      await provisionRNode(band, setStatus);
+      await provisionRNode($("bld-rnode-board").value, band, setStatus);
       setStatus("RNode provisioned ✓");
       log("RNode provisioned successfully");
     } catch (e) {

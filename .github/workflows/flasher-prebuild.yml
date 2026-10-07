@@ -158,10 +158,23 @@ jobs:
           cp /tmp/rnode-out/RNode_Firmware.ino.bin \
              "$RUNNER_TEMP/out/rnode/lora32_v21/firmware.bin"
 
+      - name: Build firmware-esp32_sx12xx_dual_single
+        run: |
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32 \
+            --build-property 'build.partitions.csv=/tmp/RNode_Firmware/min_spiffs.csv' \
+            --build-property "upload.maximum_size=2097152" \
+            --build-property 'compiler.cpp.extra_flags=-DBOARD_MODEL=0x35 -DESP32_SX12XX_DUAL_SINGLE' \
+            --output-dir /tmp/rnode-out-sx12xx \
+            /tmp/RNode_Firmware
+          mkdir -p "$RUNNER_TEMP/out/rnode/esp32_sx12xx_dual_single"
+          cp /tmp/rnode-out-sx12xx/RNode_Firmware.ino.bin \
+             "$RUNNER_TEMP/out/rnode/esp32_sx12xx_dual_single/firmware.bin"
+
       - name: Upload built bin
         uses: actions/upload-artifact@v4
         with:
-          name: fw-rnode-lora32_v21
+          name: fw-rnode
           path: ${{ runner.temp }}/out/
 
   publish:
