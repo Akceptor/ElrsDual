@@ -160,8 +160,9 @@ jobs:
 
       - name: Build firmware-esp32_sx12xx_dual_single
         run: |
+          # FlashMode=dio: default QIO libs make runtime flash reads garbage on these RX boards, corrupting NVS/EEPROM
           arduino-cli compile \
-            --fqbn esp32:esp32:esp32 \
+            --fqbn esp32:esp32:esp32:FlashMode=dio \
             --build-property 'build.partitions.csv=/tmp/RNode_Firmware/min_spiffs.csv' \
             --build-property "upload.maximum_size=2097152" \
             --build-property 'compiler.cpp.extra_flags=-DBOARD_MODEL=0x35 -DESP32_SX12XX_DUAL_SINGLE' \
@@ -173,8 +174,9 @@ jobs:
 
       - name: Build firmware-unified_esp32_lr1121_rx
         run: |
+          # FlashMode=dio: default QIO libs make runtime flash reads garbage on these RX boards, corrupting NVS/EEPROM
           arduino-cli compile \
-            --fqbn esp32:esp32:esp32 \
+            --fqbn esp32:esp32:esp32:FlashMode=dio \
             --build-property 'build.partitions.csv=/tmp/RNode_Firmware/min_spiffs.csv' \
             --build-property "upload.maximum_size=1966080" \
             --build-property 'compiler.cpp.extra_flags=-DBOARD_MODEL=0x35 -DUNIFIED_ESP32_LR1121_RX' \
