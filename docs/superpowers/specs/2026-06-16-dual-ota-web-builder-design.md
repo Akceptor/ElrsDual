@@ -155,3 +155,10 @@ stage" fills the staged slot; the existing Flash buttons then write file-or-stag
 
 Implemented on a branch off `dual-ota-flasher`, opened as its own PR. Tool stays generic
 and in the main tree, not the per-version branches.
+
+## ESP32-C3 (RNode, slot-only)
+
+ESP32-C3 is supported for RNode flashing into an OTA slot only (board `unified_esp32c3_lr1121_rx`).
+The board must already run the stock ELRS C3 `min_spiffs` layout; full provision, the slot-switch
+bootloader, and bootloader detection are disabled on C3. Every slot write validates the app image
+header `chip_id` against the connected chip.

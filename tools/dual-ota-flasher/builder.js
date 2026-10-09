@@ -1,7 +1,7 @@
 import { REPO, BRANCHES, ARTIFACT_BRANCH, TARGETS, DOMAINS, RNODE_BOARDS, MESHTASTIC_REPO, MESHTASTIC_BOARDS, MESHTASTIC_FIRMWARE } from "./config.js";
 import { flattenTargets, filterEsp32Targets, targetToEnv } from "./targets.js";
 import { buildDefines, appendConfig } from "./configure.js";
-import { flashData, flashFullProvision, log, isConnected, setBusy, readFlashBytes, readActiveSlot, APP0_ADDR, APP1_ADDR } from "./flasher.js";
+import { flashData, flashFullProvision, log, isConnected, setBusy, readFlashBytes, readActiveSlot, isSlotOnly, APP0_ADDR, APP1_ADDR } from "./flasher.js";
 
 const DOMAIN_BY_NUM = ["au_915", "fcc_915", "eu_868", "in_866", "au_433", "eu_433", "us_433", "us_433_wide"];
 
@@ -86,7 +86,7 @@ function updateFlashButtons() {
   const b0 = $("bld-flash-staged-0"), b1 = $("bld-flash-staged-1"), bb = $("bld-flash-staged-both");
   if (b0) b0.disabled = !staged[0];
   if (b1) b1.disabled = !staged[1];
-  if (bb) bb.disabled = !(staged[0] && staged[1]);
+  if (bb) bb.disabled = !(staged[0] && staged[1]) || isSlotOnly();
 }
 
 async function loadTargets() {
@@ -292,7 +292,7 @@ async function detectTarget() {
     // Bootloader @0x1000: the custom slot-switch build contains a unique "slot_switch"
     // log tag the stock bootloader doesn't. Read the bootloader region (up to the
     // partition table @0x8000) and look for it.
-    try {
+    if (!isSlotOnly()) try {
       const boot = await readFlashBytes(0x1000, 0x7000);
       if (boot) mm({ type: "bootloader", value: bytesIndexOf(boot, "slot_switch") >= 0 ? "custom" : "stock" });
     } catch (_) { /* leave bootloader state unknown */ }
@@ -343,6 +343,7 @@ async function flashStaged(slot) {
 async function provisionBothStaged() {
   if (!staged[0] || !staged[1]) { setStatus("stage BOTH app0 (v3) and app1 (v4) first"); return; }
   if (!isConnected()) { setStatus("Connect to the board first"); return; }
+  if (isSlotOnly()) { setStatus("ESP32-C3: slot flashing only"); return; }
   const useSlotSwitch = $("bld-bootsw")?.checked ?? true;
   const l0 = staged[0].label, l1 = staged[1].label;   // capture before auto-disconnect clears staged
   const ok = await flashFullProvision(staged[0].bytes, staged[1].bytes, useSlotSwitch);

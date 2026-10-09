@@ -257,3 +257,10 @@ cd tools/dual-ota-flasher/test && node --test
 ```
 Covers the in-browser configurator (incl. field-parity against this repo's
 `UnifiedConfiguration.appendToFirmware`) and ESP32 target filtering.
+
+## ESP32-C3 (slot-only)
+
+The RNode board **Unified ESP32-C3 LR1121 RX** (`unified_esp32c3_lr1121_rx`) is flashed into an
+OTA slot only: the board must already run the stock ELRS C3 `min_spiffs` layout. Full provision,
+the slot-switch bootloader, and bootloader detection are disabled on ESP32-C3. App images are
+checked against the connected chip (header `chip_id`) before any slot write.

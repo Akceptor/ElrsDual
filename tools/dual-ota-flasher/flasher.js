@@ -1,5 +1,6 @@
 import { ESPLoader, Transport } from "./esptool-bundle.js";
 import { etxPassthrough } from "./passthrough.js";
+import { checkImageChip } from "./chipcheck.js";
 import { provisionRNode, writeRNodeFirmwareHash, configureRNodeRadio } from "./rnode-provision.js";
 
 const APP0_ADDR = 0x10000;
@@ -8,6 +9,7 @@ const APP_SIZE  = 0x1E0000;     // 1.875 MB OTA partition
 const OTADATA_ADDR = 0xe000;
 const OTADATA_SIZE = 0x2000;
 
+let connectedChip = "";
 let transport = null;
 let esploader = null;
 let viaPassthrough = false;   // connected through an EdgeTX radio bridge?
@@ -29,6 +31,16 @@ const ACTION_IDS = ["connect", "detect", "flash", "flash0", "flash1", "read0", "
   "bld-build", "bld-flash-staged-0", "bld-flash-staged-1", "bld-flash-staged-both",
   "btn-provision-rnode", "btn-rnode-fw-hash", "btn-rnode-radio"];
 export function isConnected() { return esploader !== null; }
+export function getChipName() { return connectedChip; }
+export function isSlotOnly() { return connectedChip === "ESP32-C3"; }
+// C3 has no bundled bootloader/partition blobs, so only in-place slot writes are offered.
+function applyChipConstraints() {
+  if (!isSlotOnly()) return;
+  for (const id of ["flash", "flashboot", "bld-flash-staged-both"]) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = true;
+  }
+}
 export function getLastPort() { return lastPort; }
 export { APP0_ADDR, APP1_ADDR };
 export function setBusy(busy, label) {
@@ -42,6 +54,7 @@ export function setBusy(busy, label) {
   if (bar) bar.hidden = !busy;
   // Let builder.js re-apply staging constraints (which staged buttons should stay disabled).
   if (window.onBusyChange) window.onBusyChange(busy);
+  if (!busy) applyChipConstraints();
 }
 
 // Reboot the board. esptool-js after("hard_reset") only releases RTS (it assumes EN was
@@ -88,6 +101,7 @@ async function disconnect() {
   esploader = null;
   transport = null;
   viaPassthrough = false;
+  connectedChip = "";
   setConnUI(false);
   document.dispatchEvent(new CustomEvent("ui-reset"));   // clear staged state + diagram
   log("Disconnected.");
@@ -102,6 +116,7 @@ export async function releaseEsptool() {
   esploader = null;
   transport = null;
   viaPassthrough = false;
+  connectedChip = "";
   const c = document.getElementById("connect");
   if (c) { c.setAttribute("data-i18n", "btn_connect"); if (window.i18nRefresh) window.i18nRefresh(); }
 }
@@ -133,8 +148,7 @@ document.getElementById("connect").addEventListener("click", async () => {
     const chip = await loader.main();
     if (!loader.chip) throw new Error("chip not detected — hold BOOT and retry");
 
-    // Guard: this dual-OTA tool only supports a plain ESP32 with >= 4 MB flash
-    // (bundled bootloader/partitions are esp32 4 MB min_spiffs). Refuse anything else.
+    // Guard: plain ESP32 (full dual-OTA) or ESP32-C3 (slot-only), with >= 4 MB flash.
     const chipName = (loader.chip.CHIP_NAME || "").toString();
     let mb = 0;
     try {
@@ -143,9 +157,9 @@ document.getElementById("connect").addEventListener("click", async () => {
       mb = m ? parseInt(m[1], 10) : 0;
     } catch (_) { /* size detection failed — treat as unknown */ }
 
-    if (chipName !== "ESP32") {
+    if (chipName !== "ESP32" && chipName !== "ESP32-C3") {
       log("Unsupported chip: " + (chipName || "unknown") +
-          ". This tool flashes a plain ESP32 (≥4 MB) only — not connecting.");
+          ". This tool flashes a plain ESP32 or ESP32-C3 (≥4 MB) only — not connecting.");
       try { await t.disconnect(); } catch (_) {}
       return;
     }
@@ -159,9 +173,15 @@ document.getElementById("connect").addEventListener("click", async () => {
     esploader = loader;
     lastPort = port;
     viaPassthrough = isRadio;
+    connectedChip = chipName;
     log("Connected: " + chip + "   [" + chipName + ", " + (mb ? mb + " MB flash" : "flash size unknown") +
         (isRadio ? ", via EdgeTX passthrough" : "") + "]");
     setConnUI(true);
+    if (isSlotOnly()) {
+      log("ESP32-C3: slot flashing only; board must already run ELRS C3 (min_spiffs) layout");
+      applyChipConstraints();
+      if (window.onBusyChange) window.onBusyChange(false);
+    }
   } catch (e) {
     esploader = null;
     transport = null;
@@ -186,6 +206,8 @@ async function fileToUint8(file) {
 export async function flashData(data, address, slotLabel) {
   if (!esploader) { log("Connect first."); return false; }
   if (!data) { log("Nothing to flash for " + slotLabel + "."); return false; }
+  const chipErr = checkImageChip(data, connectedChip);
+  if (chipErr) { log("Refusing to flash " + slotLabel + ": " + chipErr + "."); return false; }
   setBusy(true, "writing " + slotLabel);
   let ok = false;
   try {
@@ -235,6 +257,11 @@ document.getElementById("flash1").addEventListener("click", async () => {
 export async function flashFullProvision(app0Data, app1Data, useSlotSwitch = false) {
   if (!esploader) { log("Connect first."); return false; }
   if (!app0Data || !app1Data) { log("Need both a v3.x (app0) and v4.x (app1) image."); return false; }
+  if (isSlotOnly()) { log("Full provision is not supported on ESP32-C3 (slot flashing only)."); return false; }
+  for (const [d, n] of [[app0Data, "app0"], [app1Data, "app1"]]) {
+    const err = checkImageChip(d, connectedChip);
+    if (err) { log("Refusing to provision: " + n + " " + err + "."); return false; }
+  }
   setBusy(true, "writing both slots + bootloader");
   let ok = false;
   try {
@@ -409,6 +436,7 @@ function buildOtadata(slot) {
 
 document.getElementById("flashboot").addEventListener("click", async () => {
   if (!esploader) { log("Connect first."); return; }
+  if (isSlotOnly()) { log("Slot-switch bootloader is not available on ESP32-C3."); return; }
   setBusy(true, "writing bootloader");
   try {
     log("Loading slot-switch bootloader…");

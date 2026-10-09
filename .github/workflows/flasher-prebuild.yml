@@ -121,7 +121,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.arduino15
-          key: ${{ runner.os }}-arduino-esp32-2.0.17-libs-v1
+          key: ${{ runner.os }}-arduino-esp32-2.0.17-libs-v2
 
       - name: Install ESP32 core
         run: |
@@ -185,6 +185,19 @@ jobs:
           mkdir -p "$RUNNER_TEMP/out/rnode/unified_esp32_lr1121_rx"
           cp /tmp/rnode-out-lr1121/RNode_Firmware.ino.bin \
              "$RUNNER_TEMP/out/rnode/unified_esp32_lr1121_rx/firmware.bin"
+
+      - name: Build firmware-unified_esp32c3_lr1121_rx
+        run: |
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32c3:FlashMode=dio,CDCOnBoot=default \
+            --build-property 'build.partitions.csv=/tmp/RNode_Firmware/min_spiffs.csv' \
+            --build-property "upload.maximum_size=1966080" \
+            --build-property 'compiler.cpp.extra_flags=-DBOARD_MODEL=0x35 -DUNIFIED_ESP32C3_LR1121_RX' \
+            --output-dir /tmp/rnode-out-c3 \
+            /tmp/RNode_Firmware
+          mkdir -p "$RUNNER_TEMP/out/rnode/unified_esp32c3_lr1121_rx"
+          cp /tmp/rnode-out-c3/RNode_Firmware.ino.bin \
+             "$RUNNER_TEMP/out/rnode/unified_esp32c3_lr1121_rx/firmware.bin"
 
       - name: Upload built bin
         uses: actions/upload-artifact@v4
