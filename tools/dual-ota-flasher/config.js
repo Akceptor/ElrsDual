@@ -54,6 +54,7 @@ export const MESHTASTIC_REPO = { owner: "Akceptor", repo: "meshtastic_firmware",
 export const MESHTASTIC_BOARDS = {
   "EMAX 900 OLED TX": "emax_900_tx_oled",
   "BAYCKRC Dual Band TX": "bayckrc_dual_band",
+  "BAYCKRC Dual Band Gemini RX": "bayckrc_gemini_rx",
   "Radiomaster TX15 (internal module)": "radiomaster_tx15_internal",
   "LilyGo LoRa32 v2.1 (SX1276 / 433–915 MHz)": "tlora-v2-1-1_6",
   "ESP32 SX12xx Dual (single radio)": "esp32_sx12xx_dual_single",
@@ -65,6 +66,7 @@ export const MESHTASTIC_BOARDS = {
 export const MESHTASTIC_FIRMWARE = {
   emax_900_tx_oled: "firmware-emax_900_tx_oled-2.7.26.*.ota.bin",
   bayckrc_dual_band: "firmware-bayckrc_dual_band-2.7.26.*.ota.bin",
+  bayckrc_gemini_rx: "firmware-bayckrc_gemini_rx-2.7.26.*.ota.bin",
   radiomaster_tx15_internal: "firmware-radiomaster_tx15_internal-2.7.26.*.ota.bin",
   "tlora-v2-1-1_6": "firmware-tlora-v2-1-1_6-2.7.26.*.ota.bin",
   esp32_sx12xx_dual_single: "firmware-esp32_sx12xx_dual_single-2.7.26.*.ota.bin",
